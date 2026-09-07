@@ -1,0 +1,8 @@
+@Kitchain_Api_HostAddress = http://localhost:5080
+
+GET {{Kitchain_Api_HostAddress}}/health
+Accept: text/plain
+
+###
+GET {{Kitchain_Api_HostAddress}}/health/ready
+Accept: text/plain

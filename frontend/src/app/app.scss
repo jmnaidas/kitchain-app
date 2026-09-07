@@ -1,0 +1,26 @@
+:host {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+main {
+  flex: 1;
+  width: min(var(--content-width), 100% - 2 * var(--page-gutter));
+  margin-inline: auto;
+}
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-7) var(--page-gutter) 0;
+  padding-block: var(--space-5);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+@media (max-width: 640px) {
+  :host {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+}
