@@ -23,8 +23,8 @@
 @if (filters().length) {
   <div class="applied-filters" aria-label="Applied filters">
     <span class="applied-label">Your search</span>
-    @for (filter of filters(); track filter) {
-      <span class="filter-chip">{{ filter }}</span>
+    @for (filter of filters(); track filter.key) {
+      <span class="filter-chip">{{ filter.label }}</span>
     }
     <button type="button" class="text-button" (click)="reset()">Clear all</button>
   </div>

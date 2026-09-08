@@ -48,7 +48,21 @@ export class Courts {
   private readonly refresh = signal(0);
   protected readonly query = computed(() => this.parsed().query);
   protected readonly queryParams = computed(() => courtQueryParams(this.query()));
-  protected readonly filters = computed(() => activeFilterLabels(this.query()));
+  protected readonly filters = computed(() => {
+    const query = this.query();
+    const labels = activeFilterLabels(query);
+    // Match the label order, but retain each chip's identity when its value changes.
+    const keys: (keyof CourtSearch)[] = [
+      'city',
+      'indoorOutdoor',
+      'minCourts',
+      query.maxStartingPrice !== undefined ? 'maxStartingPrice' : 'currencyCode',
+      'amenity',
+    ];
+    return keys
+      .filter((key) => query[key] !== undefined)
+      .map((key, index) => ({ key, label: labels[index] }));
+  });
   protected readonly state = signal<ExploreState>({ kind: 'loading' });
   protected readonly page = computed(() => {
     const state = this.state();

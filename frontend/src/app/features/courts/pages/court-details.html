@@ -1,0 +1,212 @@
+<a class="back-link" routerLink="/courts" queryParamsHandling="preserve">
+  <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg> Back to Courts
+</a>
+
+@switch (state().kind) {
+  @case ('loading') {
+    <section class="state-panel" aria-busy="true">
+      <p class="eyebrow">Courts / A closer look</p>
+      <h1>Getting to know the court.</h1>
+      <p role="status">Loading venue details…</p>
+      <div class="skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+    </section>
+  }
+  @case ('not-found') {
+    <section class="state-panel">
+      <p class="eyebrow">A little off court</p>
+      <h1>Court not found.</h1>
+      <p role="status">
+        This venue may no longer be listed. Head back to Courts to find another place to play.
+      </p>
+      <a class="text-link" routerLink="/courts" queryParamsHandling="preserve">Explore courts</a>
+    </section>
+  }
+  @case ('error') {
+    <section class="state-panel">
+      <p class="eyebrow">A brief pause</p>
+      <h1>We couldn’t load this court.</h1>
+      <p role="alert">Please try again to see the venue details.</p>
+      <button class="primary-action" type="button" (click)="retry()">Try again</button>
+    </section>
+  }
+  @case ('ready') {
+    @if (court(); as venue) {
+      <article appEntrance aria-labelledby="venue-title">
+        <header class="venue-hero">
+          <div class="identity">
+            <p class="eyebrow">Courts / {{ venue.city }}</p>
+            <h1 id="venue-title">{{ venue.name }}</h1>
+            <p class="address">{{ venue.address }}</p>
+            @if (venue.region) {
+              <p class="region">{{ venue.city }} · {{ venue.region }}</p>
+            }
+          </div>
+          <div
+            class="court-art"
+            [class.outdoor]="venue.indoorOutdoor === 'Outdoor'"
+            [class.mixed]="venue.indoorOutdoor === 'Mixed'"
+            aria-hidden="true"
+          >
+            <span>K / COURTS</span>
+            <div class="court-lines"><i></i></div>
+            <span>ROOM FOR A GOOD GAME</span>
+          </div>
+        </header>
+
+        <dl class="venue-facts">
+          <div>
+            <dt>Setting</dt>
+            <dd>{{ venue.indoorOutdoor }}</dd>
+          </div>
+          <div>
+            <dt>Courts</dt>
+            <dd>{{ venue.numberOfCourts }}</dd>
+          </div>
+          @if (venue.surface) {
+            <div>
+              <dt>Surface</dt>
+              <dd>{{ venue.surface }}</dd>
+            </div>
+          }
+        </dl>
+
+        <div class="detail-layout">
+          <section class="visit" aria-labelledby="visit-title">
+            <p class="eyebrow">Your next game</p>
+            <h2 id="visit-title">Plan your visit.</h2>
+            @if (price(); as amount) {
+              <p class="price-label">Approximate starting price</p>
+              <p class="price">
+                {{ amount }}
+                <span
+                  >{{ venue.currencyCode }}
+                  @if (venue.priceUnit; as unit) {
+                    · {{ priceUnitLabels[unit] }}
+                  }
+                </span>
+              </p>
+              <p class="muted">Confirm current rates and what’s included with the venue.</p>
+            } @else {
+              <p class="unknown-price">Ask about pricing</p>
+              <p class="muted">
+                A starting price hasn’t been listed. Check with the venue before your visit.
+              </p>
+            }
+            @if (venue.openingHours) {
+              <h3>Opening hours</h3>
+              <p class="hours">{{ venue.openingHours }}</p>
+            }
+            <div class="booking">
+              <h3>Booking · {{ bookingLabels[venue.bookingMethod] }}</h3>
+              @if (bookingUrl(); as url) {
+                <a class="primary-action" [href]="url" target="_blank" rel="noopener noreferrer">
+                  Open booking page <svg lucideArrowUpRight [size]="18" aria-hidden="true"></svg
+                  ><span class="sr-only"> (opens in a new tab)</span>
+                </a>
+                <p class="muted">
+                  Opens the venue’s external booking page. Arrange your visit directly with the
+                  venue or its booking provider.
+                </p>
+              } @else {
+                @switch (venue.bookingMethod) {
+                  @case ('WalkIn') {
+                    <p>
+                      Walk-in is the listed booking method. Check with the venue before travelling.
+                    </p>
+                  }
+                  @case ('Phone') {
+                    <p>
+                      Phone is the listed booking method.
+                      @if (phoneUrl(); as url) {
+                        <a [href]="url">Call {{ venue.phone }}</a>
+                      } @else {
+                        Confirm arrangements directly with the venue.
+                      }
+                    </p>
+                  }
+                  @case ('Website') {
+                    @if (websiteUrl(); as url) {
+                      <a class="text-link" [href]="url" target="_blank" rel="noopener noreferrer"
+                        >Visit venue website <span class="sr-only">(opens in a new tab)</span></a
+                      >
+                    }
+                    <p>No separate booking page is listed. Confirm arrangements with the venue.</p>
+                  }
+                  @default {
+                    <p>
+                      No booking page is listed. Confirm booking arrangements directly with the
+                      venue.
+                    </p>
+                  }
+                }
+              }
+            </div>
+            <div class="availability">
+              <h3>
+                {{
+                  venue.availability.status === 'NotIntegrated'
+                    ? 'Availability not connected yet'
+                    : 'Contact venue for availability'
+                }}
+              </h3>
+              <p>
+                Check schedules directly with the venue. Kitchain does not confirm reservations or
+                process payments.
+              </p>
+            </div>
+          </section>
+
+          <div class="venue-information">
+            @if (venue.amenities.length) {
+              <section aria-labelledby="amenities-title">
+                <p class="eyebrow">Around the court</p>
+                <h2 id="amenities-title">The little extras.</h2>
+                <ul class="amenities">
+                  @for (amenity of venue.amenities; track amenity) {
+                    <li>{{ amenityLabels[amenity] }}</li>
+                  }
+                </ul>
+              </section>
+            }
+            @if (venue.phone || websiteUrl() || socialUrl()) {
+              <section class="contact" aria-labelledby="contact-title">
+                <h2 id="contact-title">Get in touch.</h2>
+                @if (venue.phone) {
+                  <p class="contact-label">Phone</p>
+                  @if (phoneUrl(); as url) {
+                    <a [href]="url">{{ venue.phone }}</a>
+                  } @else {
+                    <p>{{ venue.phone }}</p>
+                  }
+                }
+                @if (websiteUrl(); as url) {
+                  <a [href]="url" target="_blank" rel="noopener noreferrer"
+                    >Venue website <svg lucideArrowUpRight [size]="16" aria-hidden="true"></svg
+                    ><span class="sr-only"> (opens in a new tab)</span></a
+                  >
+                }
+                @if (socialUrl(); as url) {
+                  <a [href]="url" target="_blank" rel="noopener noreferrer"
+                    >Venue social page <svg lucideArrowUpRight [size]="16" aria-hidden="true"></svg
+                    ><span class="sr-only"> (opens in a new tab)</span></a
+                  >
+                }
+                @if (websiteUrl() || socialUrl()) {
+                  <p class="muted">External websites open in a new tab.</p>
+                }
+              </section>
+            }
+            <section class="source" aria-labelledby="source-title">
+              <h2 id="source-title">About this listing.</h2>
+              <p>{{ sourceLabels[venue.dataSource] }}</p>
+              <p class="muted">
+                This describes where the information came from, not an independent verification.
+                Confirm details with the venue.
+              </p>
+            </section>
+          </div>
+        </div>
+      </article>
+    }
+  }
+}

@@ -183,11 +183,6 @@ details ul {
 .venue-action a:hover {
   color: var(--clay);
 }
-.details-note {
-  margin-top: 0.25rem;
-  font-size: 0.5625rem;
-  color: var(--text-muted);
-}
 @media (max-width: 1000px) {
   .venue {
     grid-template-columns: 10rem minmax(0, 1fr);
@@ -219,10 +214,6 @@ details ul {
     grid-row: 1 / span 3;
     align-self: center;
     margin: 0;
-  }
-  .details-note {
-    grid-column: 2;
-    grid-row: 4;
   }
   .booking {
     margin-top: 0.75rem;
@@ -268,8 +259,7 @@ details ul {
   .availability {
     font-size: 0.75rem;
   }
-  .provenance,
-  .details-note {
+  .provenance {
     font-size: 0.6875rem;
   }
   .address {

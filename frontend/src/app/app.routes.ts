@@ -14,11 +14,9 @@ export const routes: Routes = [
   },
   {
     path: 'courts/:id',
-    title: 'Court details coming soon | Kitchain',
+    title: 'Court details | Kitchain',
     loadComponent: () =>
-      import('./features/courts/pages/court-details-placeholder').then(
-        (m) => m.CourtDetailsPlaceholder,
-      ),
+      import('./features/courts/pages/court-details').then((m) => m.CourtDetails),
   },
   {
     path: 'play',

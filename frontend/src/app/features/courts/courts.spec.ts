@@ -188,7 +188,7 @@ describe('Courts Explore', () => {
     expect(element.textContent).toContain('This search link needs a small fix');
   });
 
-  it('shows unknown pricing and opens the details placeholder with the Courts navigation active', async () => {
+  it('shows unknown pricing and opens details with the Courts navigation active', async () => {
     await navigate('/courts?city=Makati');
     request().flush(
       response([{ ...venue, startingPrice: null, currencyCode: null, priceUnit: null }]),
@@ -199,7 +199,22 @@ describe('Courts Explore', () => {
     expect(link.href).toContain('city=Makati');
     link.click();
     await settle();
-    expect(element.querySelector('h1')?.textContent).toContain('Coming soon');
+    http.expectOne(`/api/courts/${venue.id}`).flush({
+      ...venue,
+      region: null,
+      latitude: null,
+      longitude: null,
+      surface: null,
+      openingHours: null,
+      phone: null,
+      websiteUrl: null,
+      socialUrl: null,
+      bookingUrl: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+    await settle();
+    expect(element.querySelector('h1')?.textContent).toContain(venue.name);
     expect(
       element.querySelector('nav[aria-label="Mobile primary"] [aria-current="page"]')?.textContent,
     ).toContain('Courts');

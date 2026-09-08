@@ -67,6 +67,20 @@ export interface CourtPage {
   totalPages: number;
 }
 
+export interface CourtDetail extends CourtSummary {
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  surface: string | null;
+  openingHours: string | null;
+  phone: string | null;
+  websiteUrl: string | null;
+  socialUrl: string | null;
+  bookingUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CourtSearch {
   city?: string;
   indoorOutdoor?: IndoorOutdoor;

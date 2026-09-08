@@ -1,0 +1,314 @@
+.detail-layout,
+ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+h3,
+.booking,
+.primary-action,
+li,
+.contact a {
+  font-size: 0.875rem;
+}
+.region,
+.muted,
+.availability p,
+.source {
+  font-size: 0.8125rem;
+}
+dt,
+.price-label,
+.contact-label,
+.price span {
+  font-size: 0.75rem;
+}
+.region,
+.muted,
+.availability p,
+dt,
+.price-label,
+.contact-label,
+.price span {
+  color: var(--text-muted);
+}
+.back-link,
+.primary-action {
+  text-decoration: none;
+}
+:host,
+.venue-hero {
+  padding: 2rem 0 3rem;
+}
+:host {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  font-size: 0.85rem;
+}
+.back-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+.venue-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 3rem;
+}
+h1 {
+  font-size: clamp(2.5rem, 4.5vw, 4.5rem);
+}
+.address {
+  margin: 0;
+  max-width: 40rem;
+}
+.region {
+  margin: 0.35rem 0 0;
+}
+.court-art {
+  position: relative;
+  overflow: hidden;
+  height: 16rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--forest);
+  color: var(--ivory);
+}
+.outdoor {
+  background: #869a69;
+  color: var(--forest);
+}
+.mixed {
+  background: #65aac2;
+  color: var(--forest);
+}
+.court-art > span {
+  z-index: 1;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+}
+.court-lines {
+  position: absolute;
+  width: 65%;
+  height: 160%;
+  left: 45%;
+  top: -25%;
+  border: 1px solid currentColor;
+  transform: rotate(-25deg);
+  opacity: 0.6;
+}
+.court-lines::before,
+.court-lines::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  border-top: 1px solid currentColor;
+  top: 32%;
+}
+.court-lines::after {
+  top: 68%;
+}
+.court-lines i {
+  position: absolute;
+  inset: 0 50%;
+  border-left: 1px solid currentColor;
+}
+dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 3rem;
+  margin: 0;
+  padding: 1.5rem 0;
+  border-block: 1px solid var(--border);
+}
+dl > div {
+  min-width: 6rem;
+  max-width: 100%;
+}
+dt,
+.price-label,
+.contact-label {
+  margin: 0;
+}
+dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.15rem;
+}
+.detail-layout {
+  gap: 5rem;
+  padding-top: 3rem;
+}
+h2 {
+  font: 400 2rem/1.2 var(--font-display);
+  letter-spacing: -0.035em;
+  margin: 0.65rem 0 1.5rem;
+}
+h3 {
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+}
+.price {
+  font-size: 2.25rem;
+  letter-spacing: -0.04em;
+  margin: 0.2rem 0;
+  line-height: 1.4;
+}
+.price span {
+  display: inline-block;
+  letter-spacing: 0;
+}
+.unknown-price {
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+.hours {
+  white-space: pre-line;
+}
+.booking {
+  margin-top: 2rem;
+  padding-top: 0.5rem;
+}
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  border: 1px solid var(--forest);
+  background: var(--forest);
+  color: var(--ivory);
+  cursor: pointer;
+}
+.primary-action:hover {
+  background: #28563f;
+}
+.availability {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  background: #e7e9df;
+}
+.availability h3 {
+  margin: 0 0 0.5rem;
+}
+.availability p {
+  margin: 0;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  gap: 0 1.5rem;
+}
+li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+section + section {
+  padding-top: 1.5rem;
+  margin-top: 2rem;
+}
+.contact a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.75rem;
+  text-underline-offset: 0.3rem;
+}
+.source h2 {
+  font: 600 0.875rem var(--font-ui);
+  letter-spacing: 0;
+  margin-bottom: 0.75rem;
+}
+.state-panel {
+  padding: 3rem 0;
+  max-width: 45rem;
+}
+.state-panel h1 {
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
+}
+.skeleton {
+  margin-top: 2rem;
+}
+.skeleton span {
+  display: block;
+  height: 1rem;
+  background: #e3e7d9;
+  margin: 1rem 0;
+  width: 80%;
+}
+.skeleton span:first-child {
+  height: 6rem;
+  width: 100%;
+}
+@media (max-width: 800px) {
+  .venue-hero {
+    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+  .detail-layout {
+    gap: 2rem;
+  }
+}
+@media (max-width: 600px) {
+  :host {
+    padding-top: 1rem;
+  }
+  .venue-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.25rem 0 1.5rem;
+  }
+  h1 {
+    font-size: 2.65rem;
+    margin-block: 1rem;
+  }
+  .address {
+    font-size: 0.9rem;
+  }
+  .court-art {
+    height: 6rem;
+    flex-direction: row;
+    align-items: end;
+    padding: 1rem;
+  }
+  .court-art > span:first-child {
+    align-self: start;
+  }
+  .court-art > span {
+    font-size: 0.5rem;
+  }
+  dl {
+    gap: 1rem 2rem;
+  }
+  .detail-layout {
+    grid-template-columns: 1fr;
+    padding-top: 2rem;
+    gap: 2.5rem;
+  }
+  .primary-action {
+    width: 100%;
+  }
+  .venue-information {
+    border-top: 1px solid var(--border);
+  }
+  .venue-information,
+  .state-panel {
+    padding-top: 2rem;
+  }
+}
+
+.booking,
+section + section {
+  border-top: 1px solid var(--border);
+}
