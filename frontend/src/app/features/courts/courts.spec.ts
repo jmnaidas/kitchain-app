@@ -212,6 +212,7 @@ describe('Courts Explore', () => {
       bookingUrl: null,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
+      photos: [],
     });
     await settle();
     expect(element.querySelector('h1')?.textContent).toContain(venue.name);

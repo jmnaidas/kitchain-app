@@ -14,6 +14,26 @@ public static class DevelopmentCourtSeeder
             .ToListAsync(cancellationToken);
         var missing = samples.Where(c => !existing.Contains(c.Id)).ToArray();
         db.Courts.AddRange(missing);
+        // Local, explicitly illustrated development assets; never real venue photographs.
+        // Only fill an empty gallery, preserving any existing owner/community metadata.
+        var galleryId = samples[0].Id;
+        var galleryCourt = missing.FirstOrDefault(c => c.Id == galleryId)
+            ?? await db.Courts.Include(c => c.Photos).SingleAsync(c => c.Id == galleryId, cancellationToken);
+        if (galleryCourt.Photos.Count == 0)
+        {
+            foreach (var (number, asset, alt) in new[]
+            {
+                (1, "forest", "Fictional development sample: forest court illustration, not a venue photograph"),
+                (2, "blue", "Fictional development sample: blue court illustration, not a venue photograph"),
+                (3, "sage", "Fictional development sample: sage court illustration, not a venue photograph")
+            })
+            {
+                galleryCourt.AddPhoto(new CourtPhoto(
+                    Guid.Parse($"10000000-0000-4000-8000-{number:D12}"), galleryId,
+                    $"http://localhost:4200/dev/court-{asset}.svg", number - 1, number == 1,
+                    galleryCourt.CreatedAt, alt));
+            }
+        }
         await db.SaveChangesAsync(cancellationToken);
         return missing.Length;
     }

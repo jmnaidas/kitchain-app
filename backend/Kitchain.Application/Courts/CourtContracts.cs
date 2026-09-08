@@ -20,13 +20,16 @@ public sealed record CourtSummary(
     public CourtAvailability Availability => CourtAvailability.NotIntegrated;
 }
 
+public sealed record CourtPhotoDetail(Guid Id, string ImageUrl, string? AltText, int DisplayOrder, bool IsPrimary);
+
 public sealed record CourtDetail(
     Guid Id, string Name, string Address, string City, string? Region,
     decimal? Latitude, decimal? Longitude, int NumberOfCourts, IndoorOutdoorType IndoorOutdoor,
     string? Surface, string? OpeningHours, decimal? StartingPrice, string? CurrencyCode,
     PriceUnit? PriceUnit, IReadOnlyList<AmenityCode> Amenities, string? Phone,
     string? WebsiteUrl, string? SocialUrl, string? BookingUrl, BookingMethod BookingMethod,
-    CourtDataSource DataSource, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+    CourtDataSource DataSource, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    IReadOnlyList<CourtPhotoDetail> Photos)
 {
     public CourtAvailability Availability => CourtAvailability.NotIntegrated;
 }

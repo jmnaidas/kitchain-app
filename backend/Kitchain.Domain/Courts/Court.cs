@@ -4,6 +4,7 @@ namespace Kitchain.Domain.Courts;
 public sealed class Court
 {
     private readonly List<CourtAmenity> _amenities = [];
+    private readonly List<CourtPhoto> _photos = [];
     private Court() { }
 
     public Court(
@@ -89,6 +90,19 @@ public sealed class Court
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<CourtAmenity> Amenities => _amenities.AsReadOnly();
+    public IReadOnlyCollection<CourtPhoto> Photos => _photos.AsReadOnly();
+
+    public void AddPhoto(CourtPhoto photo)
+    {
+        ArgumentNullException.ThrowIfNull(photo);
+        if (photo.CourtId != Id) throw new ArgumentException("The photo belongs to another venue.", nameof(photo));
+        if (_photos.Any(p => p.Id == photo.Id)) throw new ArgumentException("The photo ID already exists.", nameof(photo));
+        if (photo.IsPrimary && _photos.Any(p => p.IsPrimary))
+            throw new ArgumentException("A venue can have at most one primary photo.", nameof(photo));
+        if (photo.CreatedAt < CreatedAt) throw new ArgumentException("A photo cannot predate its venue.", nameof(photo));
+        _photos.Add(photo);
+        if (photo.CreatedAt > UpdatedAt) UpdatedAt = photo.CreatedAt;
+    }
 
     private static string RequiredText(string value, int maxLength, string parameter) =>
         OptionalText(value, maxLength, parameter) ?? throw new ArgumentException("A value is required.", parameter);

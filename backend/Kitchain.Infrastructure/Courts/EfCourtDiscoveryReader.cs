@@ -41,6 +41,8 @@ public sealed class EfCourtDiscoveryReader(KitchainDbContext db) : ICourtDiscove
                 c.OpeningHours, c.StartingPrice, c.CurrencyCode, c.PriceUnit,
                 c.Amenities.OrderBy(a => a.AmenityCode).Select(a => a.AmenityCode).ToList(),
                 c.Phone, c.WebsiteUrl, c.SocialUrl, c.BookingUrl, c.BookingMethod,
-                c.DataSource, c.CreatedAt, c.UpdatedAt))
+                c.DataSource, c.CreatedAt, c.UpdatedAt,
+                c.Photos.OrderByDescending(p => p.IsPrimary).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id)
+                    .Select(p => new CourtPhotoDetail(p.Id, p.ImageUrl, p.AltText, p.DisplayOrder, p.IsPrimary)).ToList()))
             .SingleOrDefaultAsync(cancellationToken);
 }

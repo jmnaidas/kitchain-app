@@ -28,7 +28,7 @@ if (args.Contains("--seed-courts", StringComparer.Ordinal))
         throw new InvalidOperationException("Court sample seeding is permitted only in Development.");
     await using var scope = app.Services.CreateAsyncScope();
     var added = await DevelopmentCourtSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<KitchainDbContext>());
-    app.Logger.LogInformation("Added {Count} fictional development venues. No existing records were changed.", added);
+    app.Logger.LogInformation("Added {Count} fictional development venues. Missing sample gallery metadata was initialized; existing galleries were preserved.", added);
     return;
 }
 

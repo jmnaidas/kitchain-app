@@ -9,6 +9,7 @@ import { CourtDetail } from '../data-access/court.models';
 
 // Test-only data matching the existing public detail contract.
 const venue: CourtDetail = {
+  photos: [],
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Test Court',
   city: 'Makati',
@@ -99,6 +100,48 @@ describe('Court Details', () => {
     expect(element.querySelector('h1')?.textContent).toBe('Court not found.');
     expect(element.querySelector('a.text-link')?.getAttribute('href')).toBe('/courts');
     expect(element.querySelector('article')).toBeNull();
+  });
+
+  it('renders ordered gallery images with alt text and reserved dimensions', async () => {
+    await navigate();
+    request().flush({
+      ...venue,
+      photos: [
+        {
+          id: 'primary',
+          imageUrl: 'https://example.com/primary.jpg',
+          altText: 'Indoor courts',
+          displayOrder: 0,
+          isPrimary: true,
+        },
+        {
+          id: 'supporting',
+          imageUrl: 'https://example.com/supporting.jpg',
+          altText: null,
+          displayOrder: 1,
+          isPrimary: false,
+        },
+      ],
+    });
+    await settle();
+    const images = element.querySelectorAll<HTMLImageElement>('app-court-gallery img');
+    expect(images).toHaveLength(2);
+    expect(images[0].getAttribute('src')).toBe('https://example.com/primary.jpg');
+    expect(images[0].alt).toBe('Indoor courts');
+    expect(images[1].alt).toContain(venue.name);
+    expect(images[0].getAttribute('width')).toBe('1200');
+    expect(element.querySelector('.court-art')).toBeNull();
+    images.forEach((image) => image.dispatchEvent(new Event('error')));
+    await settle();
+    expect(element.querySelector('.court-art')).not.toBeNull();
+  });
+
+  it('keeps the court geometry when the venue has no photos', async () => {
+    await navigate();
+    request().flush(venue);
+    await settle();
+    expect(element.querySelector('.court-art')?.getAttribute('aria-hidden')).toBe('true');
+    expect(element.querySelector('app-court-gallery img')).toBeNull();
   });
 
   it('does not request malformed IDs', async () => {

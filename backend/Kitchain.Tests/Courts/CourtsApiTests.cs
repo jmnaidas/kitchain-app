@@ -91,6 +91,9 @@ public sealed class CourtsApiTests(PostgresCourtFixture fixture) : IClassFixture
         Assert.Equal(4, detail.Amenities.Count);
         Assert.Equal("https://example.com/fictional-booking/1", detail.BookingUrl);
         Assert.Contains("Sample only", detail.OpeningHours);
+        Assert.Equal(3, detail.Photos.Count);
+        Assert.True(detail.Photos[0].IsPrimary);
+        Assert.All(detail.Photos, photo => Assert.Contains("not a venue photograph", photo.AltText));
     }
 
     [PostgresTheory]
@@ -127,11 +130,41 @@ public sealed class CourtsApiTests(PostgresCourtFixture fixture) : IClassFixture
     public async Task Migration_seeds_lookup_and_development_seed_is_idempotent()
     {
         await using var db = fixture.CreateDbContext();
-        Assert.Single(await db.Database.GetAppliedMigrationsAsync());
+        Assert.Contains("20260908120000_AddCourtPhotos", await db.Database.GetAppliedMigrationsAsync());
         Assert.Equal(13, await db.Set<Amenity>().CountAsync());
         Assert.Equal(7, await db.Courts.CountAsync());
+        Assert.Equal(3, await db.Set<CourtPhoto>().CountAsync());
         Assert.Equal(0, await DevelopmentCourtSeeder.SeedAsync(db));
         Assert.Equal(7, await db.Courts.CountAsync());
+        Assert.Equal(3, await db.Set<CourtPhoto>().CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task Photos_are_ordered_and_database_rejects_multiple_primaries()
+    {
+        var courtId = Guid.Parse("00000000-0000-4000-8000-000000000005");
+        var first = Guid.Parse("20000000-0000-4000-8000-000000000001");
+        var second = Guid.Parse("20000000-0000-4000-8000-000000000002");
+        var primary = Guid.Parse("20000000-0000-4000-8000-000000000003");
+        await using var db = fixture.CreateDbContext();
+        try
+        {
+            var court = await db.Courts.Include(c => c.Photos).SingleAsync(c => c.Id == courtId);
+            foreach (var (id, order, isPrimary) in new[] { (second, 0, false), (primary, 9, true), (first, 0, false) })
+                court.AddPhoto(new CourtPhoto(id, courtId, "https://example.com/test.jpg", order, isPrimary, court.CreatedAt));
+            await db.SaveChangesAsync();
+            var detail = await fixture.Client.GetFromJsonAsync<CourtDetail>($"/api/courts/{courtId}", Json);
+            Assert.NotNull(detail);
+            Assert.Equal(new[] { primary, first, second }, detail.Photos.Select(p => p.Id));
+            // Bypass the aggregate to verify the persistence boundary independently.
+            db.Set<CourtPhoto>().Add(new CourtPhoto(Guid.NewGuid(), courtId, "https://example.com/duplicate.jpg", 0, true, court.CreatedAt));
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+        finally
+        {
+            db.ChangeTracker.Clear();
+            await db.Set<CourtPhoto>().Where(p => p.CourtId == courtId).ExecuteDeleteAsync();
+        }
     }
 
     [PostgresFact]

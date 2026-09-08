@@ -1,0 +1,24 @@
+@if (visiblePhotos().length) {
+  <section
+    class="gallery"
+    [class.multiple]="visiblePhotos().length > 1"
+    [attr.aria-label]="venueName() + ' gallery'"
+  >
+    @for (photo of visiblePhotos(); track photo.id; let first = $first; let index = $index) {
+      <figure [class.primary]="first">
+        <img
+          [src]="photo.imageUrl"
+          [alt]="photo.altText ?? venueName() + ' — venue image ' + (index + 1)"
+          width="1200"
+          height="800"
+          [attr.loading]="first ? 'eager' : 'lazy'"
+          decoding="async"
+          referrerpolicy="no-referrer"
+          (error)="imageFailed(photo.imageUrl)"
+        />
+      </figure>
+    }
+  </section>
+} @else {
+  <ng-content />
+}

@@ -41,16 +41,18 @@
               <p class="region">{{ venue.city }} · {{ venue.region }}</p>
             }
           </div>
-          <div
-            class="court-art"
-            [class.outdoor]="venue.indoorOutdoor === 'Outdoor'"
-            [class.mixed]="venue.indoorOutdoor === 'Mixed'"
-            aria-hidden="true"
-          >
-            <span>K / COURTS</span>
-            <div class="court-lines"><i></i></div>
-            <span>ROOM FOR A GOOD GAME</span>
-          </div>
+          <app-court-gallery [photos]="venue.photos" [venueName]="venue.name">
+            <div
+              class="court-art"
+              [class.outdoor]="venue.indoorOutdoor === 'Outdoor'"
+              [class.mixed]="venue.indoorOutdoor === 'Mixed'"
+              aria-hidden="true"
+            >
+              <span>K / COURTS</span>
+              <div class="court-lines"><i></i></div>
+              <span>ROOM FOR A GOOD GAME</span>
+            </div>
+          </app-court-gallery>
         </header>
 
         <dl class="venue-facts">

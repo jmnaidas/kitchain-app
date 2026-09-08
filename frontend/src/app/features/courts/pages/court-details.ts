@@ -20,6 +20,7 @@ import {
   sourceLabels,
 } from '../data-access/court.models';
 import { CourtsApi } from '../data-access/courts-api';
+import { CourtGallery } from '../components/court-gallery';
 
 type DetailState =
   | { kind: 'loading' }
@@ -42,7 +43,7 @@ function externalUrl(value: string | null | undefined): string | null {
 
 @Component({
   selector: 'app-court-details',
-  imports: [RouterLink, Entrance, LucideArrowLeft, LucideArrowUpRight],
+  imports: [RouterLink, Entrance, LucideArrowLeft, LucideArrowUpRight, CourtGallery],
   templateUrl: './court-details.html',
   styleUrl: './court-details.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

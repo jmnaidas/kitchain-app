@@ -46,6 +46,8 @@ internal sealed class CourtConfiguration : IEntityTypeConfiguration<Court>
         court.HasIndex(c => new { c.Status, c.Name, c.Id });
         court.HasMany(c => c.Amenities).WithOne().HasForeignKey(a => a.CourtId).OnDelete(DeleteBehavior.Cascade);
         court.Navigation(c => c.Amenities).UsePropertyAccessMode(PropertyAccessMode.Field);
+        court.HasMany(c => c.Photos).WithOne().HasForeignKey(p => p.CourtId).OnDelete(DeleteBehavior.Cascade);
+        court.Navigation(c => c.Photos).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 

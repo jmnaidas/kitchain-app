@@ -67,7 +67,16 @@ export interface CourtPage {
   totalPages: number;
 }
 
+export interface CourtPhoto {
+  id: string;
+  imageUrl: string;
+  altText: string | null;
+  displayOrder: number;
+  isPrimary: boolean;
+}
+
 export interface CourtDetail extends CourtSummary {
+  photos: CourtPhoto[];
   region: string | null;
   latitude: number | null;
   longitude: number | null;
