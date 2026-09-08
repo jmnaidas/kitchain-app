@@ -2,7 +2,7 @@
 
 ## Current
 
-Kitchain is a **modular monolith**. Angular runs separately in development, with a single ASP.NET Core API and a single PostgreSQL database. Courts discovery is the first implemented backend slice; Angular remains at the introduction-page stage.
+Kitchain is a **modular monolith**. Angular runs separately in development, with a single ASP.NET Core API and a single PostgreSQL database. Courts discovery is the first implemented vertical slice, with the Explore UI consuming the read API.
 
 ### Frontend
 
@@ -12,16 +12,22 @@ Angular 22.0.8 with CLI/build 22.0.9, TypeScript 6, standalone components, zonel
 src/app/
   core/layout/        Responsive navigation
   shared/             Small feature introduction component and entrance directive
-  features/           Home, Courts, Play and Gear introduction pages
+  features/courts/    Explore page, filter/result components, typed HTTP/query helpers
+    pages/           Court Details placeholder
+  features/          Home, Play and Gear introduction pages
   app.*               Shell, route table and application configuration
 ```
 
-All four pages use lazy route components. Unknown routes return to Home. Route titles identify the page; navigation exposes `aria-current`. The shell uses a skip link, semantic landmarks, visible focus, fixed mobile navigation with safe-area clearance, and readable text contrast. Tokens remain small and provisional. Fonts use local system stacks; no external font download is required.
+Pages use lazy route components, including `/courts/:id`. Unknown routes return to Home. Route titles identify the page; navigation exposes `aria-current`, including Courts on its child route. The shell uses a skip link, semantic landmarks, visible focus, fixed mobile navigation with safe-area clearance, and readable text contrast. Tokens remain small and provisional. Fonts use local system stacks; no external font download is required.
 
-Signal inputs supply the shared feature introduction content. There is no state store or speculative service. HttpClient will be provided when the first HTTP use case exists; the current pages do not call the API.
+Signal inputs supply the shared feature introduction content. Courts uses a focused root `CourtsApi` service and typed list/search DTOs with Angular HttpClient. Relative `/api/courts` requests use the Angular development proxy to localhost:5080. Production routing is not configured in this phase.
 
-- **Lucide:** `@lucide/angular` 1.42.0, the [current standalone Angular package](https://lucide.dev/guide/angular/getting-started). Only the four navigation icons are imported. Icons accompany text and are hidden from assistive technology.
-- **Motion:** `motion` 13.2.0 using the framework-independent `motion/mini` entry point. One 350 ms opacity/8 px entrance per page, with no layout dependency. It skips unsupported browsers and reduced-motion preferences, finishes if the preference changes, and cancels on component destruction. Content is visible without animation.
+The route query parameters are the applied-search source of truth. Pure helpers validate/normalize supported values and build compact shareable URLs; repeated amenities or invalid values produce an explanatory state rather than silently broadening the query. The Explore page converts `queryParamMap` to a signal and uses an effect with subscription cleanup to cancel stale HTTP requests. A small discriminated state handles loading, ready, error and invalid links; retry reissues the same applied search. Server totals drive pagination, with a UI default of five rows and no client-side filtering or paging.
+
+`CourtFilters` owns the native form's unapplied edits and mobile disclosure, emits one complete search on Apply, and synchronizes all controls after URL changes. `CourtResult` owns only presentation: actual prices/units, normalized amenity labels, booking method, provenance and neutral availability. The route page orchestrates data, status messages and pagination. No global store or new package is needed. Decorative court geometry is CSS, not venue photography. The details placeholder retains the search query and deliberately makes no detail or existence claim.
+
+- **Lucide:** `@lucide/angular` 1.42.0, the standalone Angular package. Only used navigation, filter, location and directional icons are imported. Icons accompany text and are hidden from assistive technology.
+- **Motion:** `motion` 13.2.0 using the framework-independent `motion/mini` entry point. A 350 ms opacity/8 px entrance on page introductions and the loaded Courts list, with no layout dependency. It skips unsupported browsers and reduced-motion preferences, finishes if the preference changes, and cancels on component destruction. Content is visible without animation; loading skeletons are static.
 - **Three.js:** `three` 0.185.1 is installed as requested, with no imports, scenes, assets or WebGL dependency. It is excluded from the application bundle by being unused.
 
 Vitest and jsdom use Angular's generated unit-test builder. Angular ESLint covers TypeScript and templates; Prettier handles formatting. No UI framework, additional state library, Playwright or Storybook is present.
@@ -82,6 +88,6 @@ PostgreSQL tests use `KITCHAIN_TEST_CONNECTION_STRING`. They create a GUID-named
 
 ## Planned, not implemented
 
-Phase 2B will introduce the Courts Explore UI using these contracts. Further modules will add actual domain types and use cases incrementally.
+Phase 2C will replace the small Court Details placeholder with the existing detail contract. Further modules will add actual domain types and use cases incrementally.
 
 Court-provider adapters, community moderation, SignalR sessions, queues, scoring, deterministic PaddleMatch, identity, background synchronization and analytics remain future work. There are no message brokers, caches, microservices, CQRS frameworks, deployment pipelines or production hosting configuration.

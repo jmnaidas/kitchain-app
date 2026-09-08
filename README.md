@@ -4,9 +4,9 @@
 
 Kitchain is a full-stack pickleball companion taking shape in Metro Manila, Philippines. Its three product pillars are **Courts** (where to play), **Play** (getting together and managing the game), and **Gear** (what to play with). PaddleMatch will belong inside Gear.
 
-## Status: Phase 2A — Courts discovery backend
+## Status: Phase 2B — Courts Explore
 
-The repository contains a responsive Angular shell, an ASP.NET Core API with health checks and read-only Courts discovery, and PostgreSQL persistence. A Court represents a venue containing physical courts. The Angular pages remain placeholders; availability, real booking integrations, accounts, Play and Gear functionality are not implemented. All development venue records are explicitly fictional.
+The repository contains a responsive Angular Courts Explore page, an ASP.NET Core API with health checks and read-only Courts discovery, and PostgreSQL persistence. A Court represents a venue containing physical courts. Explore uses the API for filters and pagination; full court details, availability, booking integrations, accounts, Play and Gear functionality are not implemented. All development venue records are explicitly fictional.
 
 ## Stack and architecture
 
@@ -104,7 +104,9 @@ npm ci
 npm start
 ```
 
-Open [localhost:4200](http://localhost:4200). Routes: `/`, `/courts`, `/play`, `/gear`. The frontend does not make API requests yet, so no proxy or CORS policy is needed. Use Angular HttpClient when real HTTP behavior begins.
+Open [Courts Explore](http://localhost:4200/courts). Routes: `/`, `/courts`, `/courts/:id`, `/play`, `/gear`. Angular HttpClient requests relative `/api/courts`; `frontend/proxy.conf.json` forwards `/api/**` to `http://localhost:5080` during `npm start`. Start the API and database first. No permissive CORS policy or machine-specific API URL is bundled. A future production host must route `/api` to the API and provide SPA route fallback.
+
+Explore filters by full city name, setting, one amenity, minimum court count and maximum starting price (PHP by default). Apply writes the filters to the URL and resets to page 1; Clear resets the search. Filters and pagination survive refresh and browser history. The UI requests five venues per page by default, with 5/10/20 choices; valid API page sizes in shared URLs are retained. Results remain ordered by the backend's Name/Id ordering. Loading, empty, invalid-link, out-of-range and retry states are explicit. On smaller screens, Filters opens an inline disclosure. View court leads to an honest details placeholder and retains the search for the return link.
 
 ## Tests and quality checks
 
@@ -123,7 +125,7 @@ dotnet build Kitchain.sln --no-restore
 dotnet test Kitchain.sln --no-build --no-restore
 ```
 
-Frontend tests verify navigation, all four routes, active state and honest scope messaging. Backend unit tests cover domain invariants and query normalization; the existing health/OpenAPI tests remain. PostgreSQL integration tests exercise real migrations, seeding, filters, pagination, publication boundaries, contracts and validation through the API.
+Frontend tests verify navigation, URL validation and restoration, HTTP filters and server pagination, Apply/Clear, loading/empty/error/retry states, stale-request cancellation, price/provenance/availability display and the details placeholder. Backend unit tests cover domain invariants and query normalization; the existing health/OpenAPI tests remain. PostgreSQL integration tests exercise real migrations, seeding, filters, pagination, publication boundaries, contracts and validation through the API.
 
 To include PostgreSQL integration tests, start Compose and set this in the backend terminal before `dotnet test`:
 
@@ -138,4 +140,4 @@ Use a local development database account with schema-creation permission. Each i
 
 The shell establishes responsive navigation, a small provisional token layer, visible keyboard focus, reduced-motion support and restrained editorial typography. Three.js is installed but not imported or bundled into the application. The wordmark is plain text, not a final logo.
 
-Future delivery will incrementally support **Discover → Book → Queue → Play → Score → Track**, alongside Gear discovery and explainable PaddleMatch. Court provider integrations, availability, community contributions, fair queues, scoring, accounts and analytics remain planned. See [product overview](docs/product-overview.md). The next step is Phase 2B: a deliberate Courts Explore frontend using the read API.
+Future delivery will incrementally support **Discover → Book → Queue → Play → Score → Track**, alongside Gear discovery and explainable PaddleMatch. Court provider integrations, availability, community contributions, fair queues, scoring, accounts and analytics remain planned. See [product overview](docs/product-overview.md). The next step is Phase 2C: Court Details using the existing detail API and honest external booking/contact information.

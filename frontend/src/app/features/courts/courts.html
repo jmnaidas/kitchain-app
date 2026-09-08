@@ -1,0 +1,156 @@
+<section class="explore-intro" appEntrance aria-labelledby="explore-title">
+  <div>
+    <p class="eyebrow">Courts / Explore</p>
+    <h1 id="explore-title">Find your place<br />to play<span>.</span></h1>
+    <p class="intro-copy">
+      A little closer to your next good game. Explore pickleball venues and find a court that fits
+      your day.
+    </p>
+  </div>
+  <div class="intro-art" aria-hidden="true">
+    <span class="art-lines"></span><span class="art-caption">THE GAME STARTS HERE</span
+    ><span class="art-number">01 / COURTS</span>
+  </div>
+</section>
+
+<app-court-filters
+  [query]="query()"
+  [count]="filters().length"
+  (apply)="apply($event)"
+  (clear)="reset()"
+/>
+
+@if (filters().length) {
+  <div class="applied-filters" aria-label="Applied filters">
+    <span class="applied-label">Your search</span>
+    @for (filter of filters(); track filter) {
+      <span class="filter-chip">{{ filter }}</span>
+    }
+    <button type="button" class="text-button" (click)="reset()">Clear all</button>
+  </div>
+}
+
+<section
+  class="results"
+  aria-labelledby="results-title"
+  [attr.aria-busy]="state().kind === 'loading'"
+>
+  <header class="results-header">
+    <div>
+      <p class="eyebrow">A place for every game</p>
+      <h2 #resultsHeading id="results-title" tabindex="-1">
+        Explore courts <span>{{ page() ? '(' + page()!.totalCount + ')' : '' }}</span>
+      </h2>
+    </div>
+    <span class="sort-label">By name · A–Z</span>
+  </header>
+  @if (development) {
+    <p class="preview-note">
+      Development preview · The current venue listings are fictional samples.
+    </p>
+  }
+  <p class="sr-only" role="status" aria-live="polite">
+    @if (state().kind === 'loading') {
+      Loading courts.
+    } @else if (page()) {
+      {{ page()!.totalCount }} {{ page()!.totalCount === 1 ? 'venue' : 'venues' }} found. Page
+      {{ page()!.page }} of {{ page()!.totalPages || 1 }}.
+    }
+  </p>
+
+  @switch (state().kind) {
+    @case ('loading') {
+      <div class="loading-label">Finding places to play…</div>
+      <div class="skeleton" aria-hidden="true">
+        <span></span>
+        <div><i></i><i></i><i></i></div>
+      </div>
+      <div class="skeleton" aria-hidden="true">
+        <span></span>
+        <div><i></i><i></i><i></i></div>
+      </div>
+    }
+    @case ('error') {
+      <div class="state-panel" role="alert">
+        <p class="eyebrow">A brief pause</p>
+        <h3>We couldn’t load the courts.</h3>
+        <p>Please try again. Your search filters are still here.</p>
+        <button class="action-button" type="button" (click)="retry()">Try again</button>
+      </div>
+    }
+    @case ('invalid') {
+      <div class="state-panel" role="alert">
+        <p class="eyebrow">Check your search</p>
+        <h3>This search link needs a small fix.</h3>
+        <p>
+          One or more filter values are not supported. Adjust the filters above, or start a fresh
+          search.
+        </p>
+        <button class="action-button" type="button" (click)="reset()">Clear filters</button>
+      </div>
+    }
+    @case ('ready') {
+      @if (page()!.items.length) {
+        <div class="venue-list" appEntrance>
+          @for (court of page()!.items; track court.id) {
+            <app-court-result [court]="court" [queryParams]="queryParams()" />
+          }
+        </div>
+      } @else {
+        <div class="state-panel">
+          <p class="eyebrow">Room to explore</p>
+          @if (page()!.totalCount) {
+            <h3>This page is past the last result.</h3>
+            <p>
+              Your search has {{ page()!.totalCount }} venues. Head back to the first page to see
+              them.
+            </p>
+            <button class="action-button" type="button" (click)="goToPage(1)">
+              Go to first page
+            </button>
+          } @else {
+            <h3>No places match those filters.</h3>
+            <p>Try another city or loosen a filter to find more places to play.</p>
+            <button class="action-button" type="button" (click)="reset()">Clear filters</button>
+          }
+        </div>
+      }
+      @if (page()!.totalCount) {
+        <nav class="pagination" aria-label="Court results pages">
+          <label class="page-size"
+            >Per page
+            <select [value]="query().pageSize" (change)="changePageSize($event)">
+              @if (!pageSizes.includes(query().pageSize)) {
+                <option [value]="query().pageSize" [selected]="true">{{ query().pageSize }}</option>
+              }
+              @for (size of pageSizes; track size) {
+                <option [value]="size" [selected]="query().pageSize === size">{{ size }}</option>
+              }
+            </select></label
+          >
+          <div class="page-controls">
+            <button
+              class="page-button"
+              type="button"
+              aria-label="Previous page"
+              [disabled]="page()!.page <= 1"
+              (click)="goToPage(page()!.page - 1)"
+            >
+              <svg lucideArrowLeft aria-hidden="true"></svg>
+            </button>
+            <span>Page {{ page()!.page }} of {{ page()!.totalPages }}</span>
+            <button
+              class="page-button"
+              type="button"
+              aria-label="Next page"
+              [disabled]="page()!.page >= page()!.totalPages"
+              (click)="goToPage(page()!.page + 1)"
+            >
+              <svg lucideArrowRight aria-hidden="true"></svg>
+            </button>
+          </div>
+        </nav>
+      }
+    }
+  }
+</section>

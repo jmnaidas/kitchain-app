@@ -2,12 +2,22 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
 import { routes } from './app.routes';
+import { of } from 'rxjs';
+import { CourtsApi } from './features/courts/data-access/courts-api';
 
 describe('Kitchain foundation', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes)],
+      providers: [
+        provideRouter(routes),
+        {
+          provide: CourtsApi,
+          useValue: {
+            search: () => of({ items: [], page: 1, pageSize: 5, totalCount: 0, totalPages: 0 }),
+          },
+        },
+      ],
     }).compileComponents();
   });
 
@@ -32,7 +42,7 @@ describe('Kitchain foundation', () => {
 
   it.each([
     ['/', 'Your pickleball', 'Home'],
-    ['/courts', 'Find your place to play.', 'Courts'],
+    ['/courts', 'Find your place', 'Courts'],
     ['/play', 'Good games. Good company.', 'Play'],
     ['/gear', 'Make it your game.', 'Gear'],
   ])('renders %s and exposes its active navigation state', async (url, heading, label) => {
@@ -51,8 +61,9 @@ describe('Kitchain foundation', () => {
         .querySelector('nav[aria-label="Mobile primary"] [aria-current="page"]')
         ?.textContent?.trim(),
     ).toBe(label);
-    expect(element.querySelector('.foundation-note')?.textContent).toMatch(
-      /still to come|not available yet/,
-    );
+    if (url !== '/courts')
+      expect(element.querySelector('.foundation-note')?.textContent).toMatch(
+        /still to come|not available yet/,
+      );
   });
 });

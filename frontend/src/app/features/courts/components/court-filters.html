@@ -1,0 +1,93 @@
+<div class="filter-heading">
+  <span class="eyebrow">Make it your kind of court</span>
+  <button
+    #toggle
+    type="button"
+    class="filter-toggle"
+    (click)="expanded.set(!expanded())"
+    [attr.aria-expanded]="expanded()"
+    aria-controls="court-filters"
+  >
+    <svg lucideSlidersHorizontal [size]="16" aria-hidden="true"></svg>
+    Filters
+    @if (count()) {
+      <span class="filter-count">{{ count() }}</span>
+    }
+  </button>
+</div>
+<form
+  #filterForm
+  id="court-filters"
+  class="filter-form"
+  [class.is-open]="expanded()"
+  (submit)="submit($event)"
+  (keydown.escape)="close()"
+  aria-label="Filter courts"
+>
+  <div class="field city-field">
+    <label for="court-city">City</label>
+    <input
+      id="court-city"
+      name="city"
+      type="text"
+      placeholder="All cities"
+      maxlength="100"
+      [value]="query().city ?? ''"
+      aria-describedby="city-help"
+      autocomplete="off"
+    />
+    <span id="city-help" class="field-hint">Enter a full city name</span>
+  </div>
+  <div class="field">
+    <label for="court-setting">Setting</label>
+    <select id="court-setting" name="indoorOutdoor" [value]="query().indoorOutdoor ?? ''">
+      <option value="">All settings</option>
+      @for (setting of settings; track setting) {
+        <option [value]="setting">{{ setting }}</option>
+      }
+    </select>
+  </div>
+  <div class="field count-field">
+    <label for="court-count">Minimum courts</label>
+    <input
+      id="court-count"
+      name="minCourts"
+      type="number"
+      min="1"
+      max="2147483647"
+      step="1"
+      inputmode="numeric"
+      placeholder="Any number"
+      [value]="query().minCourts ?? ''"
+    />
+  </div>
+  <div class="field amenity-field">
+    <label for="court-amenity">Must-have amenity</label>
+    <select id="court-amenity" name="amenity" [value]="query().amenity ?? ''">
+      <option value="">Any amenity</option>
+      @for (amenity of amenities; track amenity.value) {
+        <option [value]="amenity.value">{{ amenity.label }}</option>
+      }
+    </select>
+  </div>
+  <div class="field price-field">
+    <label for="court-price">Max starting price ({{ query().currencyCode ?? 'PHP' }})</label>
+    <input
+      id="court-price"
+      name="maxStartingPrice"
+      type="number"
+      min="0"
+      max="9999999999.99"
+      step="0.01"
+      inputmode="decimal"
+      placeholder="Any price"
+      [value]="query().maxStartingPrice ?? ''"
+      aria-describedby="price-help"
+    />
+    <span id="price-help" class="field-hint">Approximate · check each price unit</span>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="apply">Apply filters</button>
+    <button type="button" class="reset" (click)="reset()">Clear filters</button>
+  </div>
+</form>

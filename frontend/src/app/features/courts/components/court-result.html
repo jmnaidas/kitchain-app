@@ -1,0 +1,80 @@
+<article class="venue" [attr.aria-labelledby]="'venue-' + court().id">
+  <div
+    class="court-art"
+    [class.outdoor]="court().indoorOutdoor === 'Outdoor'"
+    [class.mixed]="court().indoorOutdoor === 'Mixed'"
+    aria-hidden="true"
+  >
+    <span class="art-label">K / COURTS</span>
+    <div class="court-lines"><span></span></div>
+    <span class="art-caption">ROOM FOR A GOOD GAME</span>
+  </div>
+  <div class="venue-body">
+    <p class="location">
+      <svg lucideMapPin [size]="14" aria-hidden="true"></svg>{{ court().city }}
+    </p>
+    <h3 [id]="'venue-' + court().id">{{ court().name }}</h3>
+    <p class="address">{{ court().address }}</p>
+    <p class="essentials">
+      <span>{{ court().indoorOutdoor }}</span
+      ><span
+        >{{ court().numberOfCourts }} {{ court().numberOfCourts === 1 ? 'court' : 'courts' }}</span
+      >
+    </p>
+    <div class="amenities" aria-label="Amenities">
+      @for (amenity of court().amenities.slice(0, 3); track amenity) {
+        <span>{{ amenityLabels[amenity] }}</span>
+      }
+      @if (court().amenities.length > 3) {
+        <details>
+          <summary>
+            +{{ court().amenities.length - 3 }} more<span class="sr-only">
+              amenities at {{ court().name }}</span
+            >
+          </summary>
+          <ul>
+            @for (amenity of court().amenities.slice(3); track amenity) {
+              <li>{{ amenityLabels[amenity] }}</li>
+            }
+          </ul>
+        </details>
+      }
+      @if (!court().amenities.length) {
+        <span>Amenities not listed</span>
+      }
+    </div>
+    <p class="provenance">{{ sourceLabels[court().dataSource] }}</p>
+  </div>
+  <div class="venue-action">
+    @if (price(); as amount) {
+      <p class="price-label">Starting from</p>
+      <p class="price">{{ amount }}</p>
+      <p class="price-unit">
+        {{ court().currencyCode }}
+        @if (court().priceUnit; as unit) {
+          · {{ priceUnitLabels[unit] }}
+        }
+      </p>
+    } @else {
+      <p class="unknown-price">Ask about pricing</p>
+      <p class="price-unit">Starting price not listed</p>
+    }
+    <p class="booking">Booking: {{ bookingLabels[court().bookingMethod] }}</p>
+    <p class="availability">
+      <span aria-hidden="true"></span
+      >{{
+        court().availability.status === 'NotIntegrated'
+          ? 'Availability not connected yet'
+          : 'Contact venue for availability'
+      }}
+    </p>
+    <a
+      [routerLink]="['/courts', court().id]"
+      [queryParams]="queryParams()"
+      [attr.aria-label]="'View court: ' + court().name"
+    >
+      View court <svg lucideArrowUpRight [size]="18" aria-hidden="true"></svg>
+    </a>
+    <span class="details-note">Details coming soon</span>
+  </div>
+</article>

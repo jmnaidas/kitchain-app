@@ -14,7 +14,7 @@
     <a
       [routerLink]="link.path"
       routerLinkActive="active"
-      [routerLinkActiveOptions]="{ exact: true }"
+      [routerLinkActiveOptions]="{ exact: link.path === '/' }"
       ariaCurrentWhenActive="page"
     >
       <svg [lucideIcon]="link.icon" [size]="20" aria-hidden="true" focusable="false"></svg>

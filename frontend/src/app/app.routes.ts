@@ -13,6 +13,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/courts/courts').then((m) => m.Courts),
   },
   {
+    path: 'courts/:id',
+    title: 'Court details coming soon | Kitchain',
+    loadComponent: () =>
+      import('./features/courts/pages/court-details-placeholder').then(
+        (m) => m.CourtDetailsPlaceholder,
+      ),
+  },
+  {
     path: 'play',
     title: 'Play | Kitchain',
     loadComponent: () => import('./features/play/play').then((m) => m.Play),
