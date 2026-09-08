@@ -3,6 +3,22 @@
 GET {{Kitchain_Api_HostAddress}}/health
 Accept: text/plain
 
+### Published venues (fictional samples only when explicitly seeded)
+GET {{Kitchain_Api_HostAddress}}/api/courts?city=Makati&indoorOutdoor=Indoor&amenity=Parking&page=1&pageSize=20
+Accept: application/json
+
+### One published development venue
+GET {{Kitchain_Api_HostAddress}}/api/courts/00000000-0000-4000-8000-000000000001
+Accept: application/json
+
+### Approximate starting price cap in PHP
+GET {{Kitchain_Api_HostAddress}}/api/courts?maxStartingPrice=450&currencyCode=PHP&minCourts=4
+Accept: application/json
+
+### Invalid pagination returns 400
+GET {{Kitchain_Api_HostAddress}}/api/courts?pageSize=101
+Accept: application/problem+json
+
 ###
 GET {{Kitchain_Api_HostAddress}}/health/ready
 Accept: text/plain

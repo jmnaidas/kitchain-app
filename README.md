@@ -4,9 +4,9 @@
 
 Kitchain is a full-stack pickleball companion taking shape in Metro Manila, Philippines. Its three product pillars are **Courts** (where to play), **Play** (getting together and managing the game), and **Gear** (what to play with). PaddleMatch will belong inside Gear.
 
-## Status: foundation phase
+## Status: Phase 2A — Courts discovery backend
 
-The repository currently contains a responsive Angular shell with honest introduction pages, an ASP.NET Core API with health checks, and local PostgreSQL configuration. There are **no product endpoints, domain entities, database tables, accounts, or live court/paddle/session data**.
+The repository contains a responsive Angular shell, an ASP.NET Core API with health checks and read-only Courts discovery, and PostgreSQL persistence. A Court represents a venue containing physical courts. The Angular pages remain placeholders; availability, real booking integrations, accounts, Play and Gear functionality are not implemented. All development venue records are explicitly fictional.
 
 ## Stack and architecture
 
@@ -16,15 +16,15 @@ The repository currently contains a responsive Angular shell with honest introdu
 - PostgreSQL 18 through Docker Compose
 - Angular ESLint, Prettier, Vitest and xUnit integration tests
 
-A modular monolith foundation: one frontend, one API process, one database. The API composes Application and Infrastructure; Application references Domain. Domain is independent. Application and Domain have no invented types. Infrastructure currently only contains the DbContext. See [architecture](docs/architecture.md).
+A modular monolith: one frontend, one API process, one database. The API composes Application and Infrastructure; Application references Domain. Domain is independent. Courts queries flow through an application service and a focused read interface implemented with EF Core in Infrastructure. See [architecture](docs/architecture.md).
 
 ```text
 frontend/             Angular application, tests and tooling
 backend/
   Kitchain.Api/       HTTP composition, health checks, development Swagger
-  Kitchain.Application/
-  Kitchain.Domain/
-  Kitchain.Infrastructure/  EF Core DbContext
+  Kitchain.Application/  Courts discovery use case and contracts
+  Kitchain.Domain/       Venue aggregate and amenity vocabulary
+  Kitchain.Infrastructure/  EF queries, configuration, migration, sample seeder
   Kitchain.Tests/     API integration tests
   Kitchain.sln
 docs/                 Product direction and implemented architecture
@@ -66,6 +66,10 @@ In the backend terminal, set a connection string matching your `.env`:
 $env:ConnectionStrings__Kitchain = "Host=localhost;Port=5432;Database=kitchain;Username=kitchain_dev;Password=kitchain_local_only"
 cd backend
 dotnet restore Kitchain.sln
+dotnet tool restore
+dotnet ef database update --project Kitchain.Infrastructure --startup-project Kitchain.Api
+# Optional, Development only: add seven clearly fictional sample venues.
+dotnet run --project Kitchain.Api --launch-profile http -- --seed-courts
 dotnet run --project Kitchain.Api --launch-profile http
 ```
 
@@ -75,7 +79,20 @@ ASP.NET Core does **not** read the root Compose `.env` automatically. The API re
 - [Readiness](http://localhost:5080/health/ready): `200 Healthy` when PostgreSQL connects; `503 Unhealthy` otherwise
 - [Swagger UI](http://localhost:5080/swagger) and [OpenAPI JSON](http://localhost:5080/swagger/v1/swagger.json): development only
 
-The API starts without database configuration; readiness then reports unhealthy. It does not create a schema or run migrations. Swagger has no business operations yet; health middleware routes are checked using the URLs above or `Kitchain.Api.http`. Local HTTP is intentional for this foundation; production hosting is out of scope.
+The API starts without database configuration; readiness then reports unhealthy. Normal startup does not migrate or seed. Apply `AddCourtsDiscovery` explicitly with the local EF tool. The migration creates `Courts`, `Amenities`, and `CourtAmenities` and installs the 13 amenity lookup codes. The separate seed command adds missing sample IDs only, preserving existing records; it exits without starting the server and refuses to run outside Development. Five samples are Published, one Draft, and one Inactive. Names include `Demo` and `(fictional)`, addresses are fictional, and URLs use `example.com`.
+
+### Courts read API
+
+- `GET /api/courts` — published venues with pagination
+- `GET /api/courts/{id}` — richer published-venue details; missing, Draft and Inactive IDs return 404
+
+Example: [filtered discovery](http://localhost:5080/api/courts?city=Makati&indoorOutdoor=Indoor&amenity=Parking&page=1&pageSize=20).
+
+Optional filters: `city` (trimmed, case-insensitive exact match), `indoorOutdoor` (`Indoor`, `Outdoor`, `Mixed`), `minCourts`, `maxStartingPrice`, `currencyCode`, and one `amenity` code. Filters combine with AND. `Mixed` is a separate classification, not implicitly included in Indoor or Outdoor. A price cap excludes unknown prices and defaults to PHP unless `currencyCode` is supplied; prices are never converted or compared across currencies. Prices are approximate starting amounts, not booking quotes; `priceUnit` describes the basis.
+
+Pagination defaults to `page=1&pageSize=20`, allows page sizes 1–100 and pages 1–1,000,000, and orders by Name then Id. The response has `items`, `page`, `pageSize`, `totalCount`, and `totalPages`. A page beyond the end returns an empty item list with the filtered total. Invalid query values return 400 Problem Details.
+
+Responses use string enums and explicit DTOs. `availability.status` is always `NotIntegrated`, which does **not** mean the venue is unavailable. Contact/booking fields point outward; Kitchain does not process bookings. Swagger documents the new routes; `Kitchain.Api.http` contains runnable examples. Local HTTP remains intentional; production hosting is out of scope.
 
 ### 3. Run the frontend
 
@@ -106,10 +123,19 @@ dotnet build Kitchain.sln --no-restore
 dotnet test Kitchain.sln --no-build --no-restore
 ```
 
-Frontend tests verify navigation, all four routes, active state and honest scope messaging. Backend tests exercise liveness, missing-database readiness, and the development-only OpenAPI boundary. Tests do not require Docker. Live PostgreSQL connectivity is verified through `/health/ready`; no Testcontainers, Playwright or Storybook is installed.
+Frontend tests verify navigation, all four routes, active state and honest scope messaging. Backend unit tests cover domain invariants and query normalization; the existing health/OpenAPI tests remain. PostgreSQL integration tests exercise real migrations, seeding, filters, pagination, publication boundaries, contracts and validation through the API.
+
+To include PostgreSQL integration tests, start Compose and set this in the backend terminal before `dotnet test`:
+
+```powershell
+$env:KITCHAIN_TEST_CONNECTION_STRING = $env:ConnectionStrings__Kitchain
+dotnet test Kitchain.sln
+```
+
+Use a local development database account with schema-creation permission. Each integration run creates a unique `kitchain_test_<guid>` schema, uses it for all test data and migration history, then drops only that test schema. Existing development tables are not modified. Without the variable, these integration tests are explicitly reported as skipped; they do not silently substitute an in-memory provider. No Testcontainers, Playwright or Storybook is installed.
 
 ## Scope and next direction
 
 The shell establishes responsive navigation, a small provisional token layer, visible keyboard focus, reduced-motion support and restrained editorial typography. Three.js is installed but not imported or bundled into the application. The wordmark is plain text, not a final logo.
 
-Future delivery will incrementally support **Discover → Book → Queue → Play → Score → Track**, alongside Gear discovery and explainable PaddleMatch. Court provider integrations, community contributions, fair queues, scoring, accounts and analytics remain planned. See [product overview](docs/product-overview.md). The next step is to define the first narrow Courts discovery slice and its data provenance before adding persistence and real UI.
+Future delivery will incrementally support **Discover → Book → Queue → Play → Score → Track**, alongside Gear discovery and explainable PaddleMatch. Court provider integrations, availability, community contributions, fair queues, scoring, accounts and analytics remain planned. See [product overview](docs/product-overview.md). The next step is Phase 2B: a deliberate Courts Explore frontend using the read API.

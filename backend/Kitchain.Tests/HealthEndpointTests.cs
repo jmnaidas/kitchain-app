@@ -44,6 +44,21 @@ public sealed class HealthEndpointTests
         Assert.Equal(expected, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Discovery_database_failure_returns_safe_problem_details()
+    {
+        await using var factory = CreateFactory("Development");
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/api/courts");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("stackTrace", body);
+        Assert.DoesNotContain("connection", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Npgsql", body);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(string environment) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
