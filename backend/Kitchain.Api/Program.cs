@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Kitchain.Application.Courts;
 using Kitchain.Infrastructure.Courts;
 using System.Text.Json.Serialization;
+using Kitchain.Application.Play;
+using Kitchain.Infrastructure.Play;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,9 @@ builder.Services.AddScoped<CourtSubmissionService>();
 builder.Services.AddScoped<ICourtSubmissionWriter, EfCourtSubmissionWriter>();
 builder.Services.AddScoped<ICourtSubmissionModeration, EfCourtSubmissionModeration>();
 builder.Services.AddScoped<ICourtDiscoveryReader, EfCourtDiscoveryReader>();
+builder.Services.AddScoped<PlaySessionService>();
+builder.Services.AddScoped<IPlaySessionStore, EfPlaySessionStore>();
+builder.Services.AddSingleton<IPlayJoinCodeGenerator, PlayJoinCodeGenerator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.DescribeAllParametersInCamelCase());
 builder.Services.AddDbContext<KitchainDbContext>(options =>
