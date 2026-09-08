@@ -1,0 +1,51 @@
+<p class="notice">Admin preview · No authentication or role protection is enabled.</p>
+<header>
+  <p class="eyebrow">Courts / Community review</p>
+  <h1>Pending submissions<span>.</span></h1>
+  <p>Take a closer look before a community venue joins Courts.</p>
+</header>
+@switch (state()) {
+  @case ('loading') {
+    <p role="status" aria-busy="true">Loading submissions…</p>
+  }
+  @case ('error') {
+    <p role="alert">We couldn’t load the review queue.</p>
+    <button type="button" (click)="reload()">Try again</button>
+  }
+  @case ('ready') {
+    <p class="muted" role="status">{{ submissions().length }} pending · Oldest first</p>
+    @if (submissions().length) {
+      <ul class="queue">
+        @for (submission of submissions(); track submission.id) {
+          <li>
+            <article>
+              <div class="row">
+                <h2>{{ submission.name }}</h2>
+                <span class="status">{{ submission.status }}</span>
+              </div>
+              <p>{{ submission.address }} · {{ submission.city }}</p>
+              <p class="muted">
+                {{ submission.indoorOutdoor }} · {{ submission.numberOfCourts }} courts ·
+                {{ bookingLabels[submission.bookingMethod] }}
+              </p>
+              <div class="row">
+                <p class="muted">Submitted {{ submission.submittedAt | date: 'medium' }}</p>
+                <a
+                  [routerLink]="['/admin/court-submissions', submission.id]"
+                  [attr.aria-label]="'Review ' + submission.name"
+                  >Review →</a
+                >
+              </div>
+            </article>
+          </li>
+        }
+      </ul>
+    } @else {
+      <section class="panel">
+        <h2>The queue is clear.</h2>
+        <p>No submissions are waiting for review.</p>
+      </section>
+    }
+    <button class="secondary" type="button" (click)="reload()">Refresh queue</button>
+  }
+}

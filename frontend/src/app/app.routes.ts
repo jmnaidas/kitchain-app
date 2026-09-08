@@ -24,6 +24,20 @@ export const routes: Routes = [
       import('./features/courts/pages/court-details').then((m) => m.CourtDetails),
   },
   {
+    path: 'admin/court-submissions',
+    title: 'Submission review queue | Kitchain',
+    loadComponent: () =>
+      import('./features/courts/admin/court-submissions').then((m) => m.CourtSubmissions),
+  },
+  {
+    path: 'admin/court-submissions/:id',
+    title: 'Review submission | Kitchain',
+    loadComponent: () =>
+      import('./features/courts/admin/court-submission-review').then(
+        (m) => m.CourtSubmissionReview,
+      ),
+  },
+  {
     path: 'play',
     title: 'Play | Kitchain',
     loadComponent: () => import('./features/play/play').then((m) => m.Play),

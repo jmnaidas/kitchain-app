@@ -1,0 +1,251 @@
+<p class="notice">Admin preview · No authentication or role protection is enabled.</p>
+<a routerLink="/admin/court-submissions">← Pending submissions</a>
+@switch (state()) {
+  @case ('loading') {
+    <h1>Loading review<span>.</span></h1>
+    <p role="status" aria-busy="true">Getting submission details…</p>
+  }
+  @case ('not-found') {
+    <h1>Submission not found<span>.</span></h1>
+    <p role="status">This submission does not exist or is no longer available.</p>
+  }
+  @case ('error') {
+    <h1>Review unavailable<span>.</span></h1>
+    <p role="alert">We couldn’t load this submission.</p>
+    <button type="button" (click)="reload()">Try again</button>
+  }
+  @case ('ready') {
+    @if (submission(); as venue) {
+      <header>
+        <p class="eyebrow">Courts / Submission review</p>
+        <h1>{{ venue.name }}</h1>
+        <span class="status">{{ venue.status }}</span>
+      </header>
+      <section aria-labelledby="venue-heading">
+        <h2 id="venue-heading">Venue & location</h2>
+        <dl class="facts">
+          <div>
+            <dt>Address</dt>
+            <dd>{{ venue.address }}</dd>
+          </div>
+          <div>
+            <dt>City / Region</dt>
+            <dd>{{ venue.city }}{{ venue.region ? ' · ' + venue.region : '' }}</dd>
+          </div>
+          <div>
+            <dt>Coordinates</dt>
+            <dd>
+              {{ venue.latitude ?? 'Not supplied' }} / {{ venue.longitude ?? 'Not supplied' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Courts / Setting</dt>
+            <dd>{{ venue.numberOfCourts }} · {{ venue.indoorOutdoor }}</dd>
+          </div>
+          <div>
+            <dt>Surface</dt>
+            <dd>{{ venue.surface || 'Not supplied' }}</dd>
+          </div>
+          <div>
+            <dt>Opening hours</dt>
+            <dd class="multiline">{{ venue.openingHours || 'Not supplied' }}</dd>
+          </div>
+          <div>
+            <dt>Approximate price</dt>
+            <dd>
+              @if (venue.startingPrice !== null) {
+                {{ venue.currencyCode }} {{ venue.startingPrice }}
+                @if (venue.priceUnit; as unit) {
+                  {{ priceUnitLabels[unit] }}
+                }
+              } @else {
+                Not supplied
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Booking method</dt>
+            <dd>{{ bookingLabels[venue.bookingMethod] }}</dd>
+          </div>
+          <div>
+            <dt>Phone</dt>
+            <dd>{{ venue.phone || 'Not supplied' }}</dd>
+          </div>
+          @for (link of links(); track link.label) {
+            <div>
+              <dt>{{ link.label }}</dt>
+              <dd>
+                @if (safeUrl(link.value); as url) {
+                  <a [href]="url" target="_blank" rel="noopener noreferrer"
+                    >{{ link.value }}<span class="sr-only"> (opens in a new tab)</span></a
+                  >
+                } @else {
+                  {{ link.value || 'Not supplied' }}
+                }
+              </dd>
+            </div>
+          }
+        </dl>
+      </section>
+      <section aria-labelledby="amenity-heading">
+        <h2 id="amenity-heading">Amenities</h2>
+        @if (venue.amenities.length) {
+          <ul class="amenities">
+            @for (amenity of venue.amenities; track amenity) {
+              <li>{{ amenityLabels[amenity] }}</li>
+            }
+          </ul>
+        } @else {
+          <p>No amenities supplied.</p>
+        }
+      </section>
+      <section aria-labelledby="photo-heading">
+        <h2 id="photo-heading">Submitted photos</h2>
+        <p class="muted">
+          External image metadata supplied by the community. Check that images represent this venue.
+        </p>
+        <app-court-gallery [photos]="venue.photos" [venueName]="venue.name"
+          ><p>No photo preview available.</p></app-court-gallery
+        >
+        <ul class="photo-metadata">
+          @for (photo of venue.photos; track photo.id) {
+            <li>
+              <strong
+                >{{ photo.isPrimary ? 'Primary image' : 'Supporting image' }} · Order
+                {{ photo.displayOrder }}</strong
+              >
+              <p>{{ photo.altText || 'No description supplied.' }}</p>
+              @if (safeUrl(photo.imageUrl); as url) {
+                <a [href]="url" target="_blank" rel="noopener noreferrer"
+                  >{{ photo.imageUrl }}<span class="sr-only"> (opens in a new tab)</span></a
+                >
+              } @else {
+                <p>{{ photo.imageUrl }}</p>
+              }
+              <p class="muted">Added {{ photo.createdAt | date: 'medium' }}</p>
+            </li>
+          }
+        </ul>
+      </section>
+      <section aria-labelledby="record-heading">
+        <h2 id="record-heading">Submission record</h2>
+        <dl class="facts">
+          <div>
+            <dt>Reference</dt>
+            <dd>{{ venue.id }}</dd>
+          </div>
+          <div>
+            <dt>Submitted</dt>
+            <dd>{{ venue.submittedAt | date: 'medium' }}</dd>
+          </div>
+          <div>
+            <dt>Updated</dt>
+            <dd>{{ venue.updatedAt | date: 'medium' }}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{{ venue.status }}</dd>
+          </div>
+        </dl>
+      </section>
+      <div aria-live="polite" aria-atomic="true">
+        @if (receipt(); as result) {
+          <section class="panel">
+            <h2>
+              {{
+                result.submissionStatus === 'Approved'
+                  ? 'Approved and published.'
+                  : 'Submission rejected.'
+              }}
+            </h2>
+            <p>
+              {{
+                result.submissionStatus === 'Approved'
+                  ? 'The venue is now available through Courts.'
+                  : 'The submission is kept for history and has not created a public venue.'
+              }}
+            </p>
+            @if (result.courtId) {
+              <a [routerLink]="['/courts', result.courtId]">View published Court →</a>
+            }
+          </section>
+        }
+      </div>
+      @if (action() === 'conflict') {
+        <p role="alert">
+          This submission has already been processed. Reload to see its current status.
+        </p>
+        <button type="button" (click)="reload()">Reload submission</button>
+      } @else if (action() === 'error') {
+        <p role="alert">
+          We could not confirm this decision. Reload the submission before trying again.
+        </p>
+        <button type="button" (click)="reload()">Reload submission</button>
+      } @else if (action() === 'invalid') {
+        <p role="alert">
+          This submission does not meet the Court validation rules. No court was published. You can
+          reject it.
+        </p>
+      }
+      @if (confirmation(); as decision) {
+        <section
+          class="panel"
+          aria-labelledby="confirmation-title"
+          [attr.aria-busy]="action() === 'saving'"
+        >
+          <h2 id="confirmation-title">
+            {{ decision === 'approve' ? 'Publish this venue?' : 'Reject this submission?' }}
+          </h2>
+          <p>
+            {{
+              decision === 'approve'
+                ? 'Approval publishes the submitted information and photo metadata to Courts.'
+                : 'Rejection keeps this submission in history without publishing a venue.'
+            }}
+          </p>
+          <div class="actions">
+            <button
+              #confirmButton
+              type="button"
+              [class.reject]="decision === 'reject'"
+              [disabled]="action() === 'saving'"
+              (click)="confirm()"
+            >
+              {{
+                action() === 'saving'
+                  ? 'Saving decision…'
+                  : decision === 'approve'
+                    ? 'Confirm approval'
+                    : 'Confirm rejection'
+              }}
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              [disabled]="action() === 'saving'"
+              (click)="cancel()"
+            >
+              Cancel
+            </button>
+          </div>
+          @if (action() === 'saving') {
+            <p role="status">Saving decision…</p>
+          }
+        </section>
+      } @else if (canDecide()) {
+        <div class="actions">
+          @if (action() !== 'invalid') {
+            <button #approveButton type="button" (click)="ask('approve')">Approve</button>
+          }
+          <button #rejectButton type="button" class="reject" (click)="ask('reject')">Reject</button>
+        </div>
+      } @else if (venue.status !== 'Pending' && action() === 'idle') {
+        <p role="status">
+          This submission has already been
+          {{ venue.status === 'Approved' ? 'approved' : 'rejected' }}. No further decisions are
+          available.
+        </p>
+      }
+    }
+  }
+}

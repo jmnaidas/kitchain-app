@@ -98,6 +98,37 @@ public sealed class CourtSubmission
     public IReadOnlyCollection<CourtSubmissionAmenity> Amenities => _amenities.AsReadOnly();
     public IReadOnlyCollection<CourtSubmissionPhoto> Photos => _photos.AsReadOnly();
 
+    public Court Approve(DateTimeOffset reviewedAt)
+    {
+        EnsureReviewable(reviewedAt);
+        // Construct the complete venue first: Court and CourtPhoto retain their own validation rules.
+        var court = new Court(Guid.NewGuid(), Name, Address, City, NumberOfCourts,
+            IndoorOutdoor, BookingMethod, CourtDataSource.CommunitySupplied, CourtStatus.Published,
+            reviewedAt, _amenities.Select(a => a.AmenityCode), Region, Latitude, Longitude,
+            Surface, OpeningHours, StartingPrice, CurrencyCode, PriceUnit, Phone, WebsiteUrl, SocialUrl, BookingUrl);
+        foreach (var photo in _photos)
+            court.AddPhoto(new CourtPhoto(Guid.NewGuid(), court.Id, photo.ImageUrl, photo.DisplayOrder,
+                photo.IsPrimary, reviewedAt, photo.AltText));
+        Status = CourtSubmissionStatus.Approved;
+        UpdatedAt = reviewedAt.ToUniversalTime();
+        return court;
+    }
+
+    public void Reject(DateTimeOffset reviewedAt)
+    {
+        EnsureReviewable(reviewedAt);
+        Status = CourtSubmissionStatus.Rejected;
+        UpdatedAt = reviewedAt.ToUniversalTime();
+    }
+
+    private void EnsureReviewable(DateTimeOffset reviewedAt)
+    {
+        if (Status != CourtSubmissionStatus.Pending)
+            throw new InvalidOperationException("This submission has already been processed.");
+        if (reviewedAt == default || reviewedAt < UpdatedAt)
+            throw new ArgumentException("Review cannot predate the submission's latest update.", nameof(reviewedAt));
+    }
+
     public void AddPhoto(CourtSubmissionPhoto photo)
     {
         ArgumentNullException.ThrowIfNull(photo);

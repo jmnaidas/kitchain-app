@@ -1,0 +1,131 @@
+:host {
+  display: block;
+  max-width: 58rem;
+  margin-inline: auto;
+  padding-block: 2rem 4rem;
+  overflow-wrap: anywhere;
+}
+.notice {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+header {
+  padding-block: 2rem;
+}
+h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+}
+h1 span {
+  color: var(--clay);
+}
+h2 {
+  margin-block: 0 1rem;
+  font: 400 1.75rem var(--font-display);
+}
+section {
+  margin-block: 2rem;
+}
+.muted,
+dt {
+  color: var(--text-muted);
+}
+.status {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  font-size: 0.8rem;
+}
+.queue,
+.photo-metadata {
+  padding: 0;
+  list-style: none;
+}
+.queue li {
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.row,
+.actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.row h2,
+.row p {
+  margin: 0;
+}
+.row a {
+  font-weight: 600;
+}
+.facts {
+  margin: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 1rem;
+  padding-block: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+dd {
+  margin: 0;
+  min-width: 0;
+}
+.multiline {
+  white-space: pre-line;
+}
+.amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  padding-left: 1.25rem;
+}
+.photo-metadata li {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.photo-metadata p {
+  margin-block: 0.4rem;
+}
+.panel {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.actions {
+  justify-content: flex-start;
+}
+button {
+  padding: 0.8rem 1.3rem;
+  border: 1px solid var(--forest);
+  border-radius: var(--radius-small);
+  background: var(--forest);
+  color: var(--ivory);
+  cursor: pointer;
+}
+.secondary {
+  background: transparent;
+  color: var(--forest);
+}
+.reject {
+  background: var(--clay);
+  border-color: var(--clay);
+}
+button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+@media (max-width: 600px) {
+  .facts > div {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .actions button {
+    flex: 1;
+  }
+}
