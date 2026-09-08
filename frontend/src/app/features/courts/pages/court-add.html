@@ -1,0 +1,112 @@
+<a routerLink="/courts" class="back">← Back to Courts</a>
+<header>
+  <p class="eyebrow">Courts / Community</p>
+  <h1>Add a Court<span>.</span></h1>
+  <p>Know a place worth playing? Help the community find its next good game.</p>
+</header>
+<div aria-live="polite" aria-atomic="true">
+  @if (state() === 'success') {
+    <section class="confirmation">
+      <p class="eyebrow">Thank you for sharing</p>
+      <h2>Submitted for verification</h2>
+      <p>Your venue is pending Kitchain review. It is not published yet.</p>
+      <a routerLink="/courts">Explore Courts →</a>
+    </section>
+  }
+</div>
+@if (state() !== 'success') {
+  <p class="form-note">
+    Fields marked * are required. Share venue contact details, not your personal details.
+  </p>
+  <form novalidate (submit)="submit($event)" [attr.aria-busy]="state() === 'submitting'">
+    <fieldset class="form-body" [disabled]="state() === 'submitting'">
+      <legend class="sr-only">Court submission</legend>
+      @for (section of sections; track section.title) {
+        <fieldset class="section">
+          <legend>{{ section.title }}</legend>
+          @if (section.note) {
+            <p class="section-note">{{ section.note }}</p>
+          }
+          <div class="fields">
+            @for (field of section.fields; track field.name) {
+              <div class="field">
+                <label [for]="field.name">{{ field.label }}{{ field.required ? ' *' : '' }}</label>
+                @if (field.options) {
+                  <select
+                    [id]="field.name"
+                    [name]="field.name"
+                    [required]="!!field.required"
+                    [attr.aria-invalid]="!!errors()[field.name]"
+                    [attr.aria-describedby]="field.name + '-help'"
+                    (blur)="validateField($event)"
+                  >
+                    <option value="">
+                      Select {{ field.required ? 'an option' : '(optional)' }}
+                    </option>
+                    @for (option of field.options; track option.value) {
+                      <option [value]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                } @else if (field.type === 'textarea') {
+                  <textarea
+                    [id]="field.name"
+                    [name]="field.name"
+                    rows="3"
+                    [attr.maxlength]="field.maxLength"
+                    [attr.aria-invalid]="!!errors()[field.name]"
+                    [attr.aria-describedby]="field.name + '-help'"
+                    (blur)="validateField($event)"
+                  ></textarea>
+                } @else {
+                  <input
+                    [id]="field.name"
+                    [name]="field.name"
+                    [type]="field.type || 'text'"
+                    [required]="!!field.required"
+                    [attr.maxlength]="field.maxLength"
+                    [attr.min]="field.min"
+                    [attr.max]="field.max"
+                    [attr.step]="field.step"
+                    [attr.aria-invalid]="!!errors()[field.name]"
+                    [attr.aria-describedby]="field.name + '-help'"
+                    (blur)="validateField($event)"
+                  />
+                }
+                <div [id]="field.name + '-help'" class="help">
+                  @if (errors()[field.name]) {
+                    <span class="error">{{ errors()[field.name] }}</span>
+                  } @else if (field.hint) {
+                    <span>{{ field.hint }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          @if (section.title === '02 / Playing details') {
+            <fieldset class="amenities">
+              <legend>Amenities (optional)</legend>
+              <div class="checks">
+                @for (amenity of amenities; track amenity.value) {
+                  <label
+                    ><input type="checkbox" name="amenities" [value]="amenity.value" />
+                    {{ amenity.label }}</label
+                  >
+                }
+              </div>
+            </fieldset>
+          }
+        </fieldset>
+      }
+      <p>Every submission is reviewed before it appears on Courts.</p>
+      <button type="submit">
+        {{ state() === 'submitting' ? 'Submitting…' : 'Submit for verification →' }}
+      </button>
+    </fieldset>
+    @if (state() === 'error') {
+      <p role="alert" class="error">
+        We could not confirm your submission. Your details are still here. Please check them and try
+        submitting again.
+      </p>
+    }
+  </form>
+}

@@ -12,6 +12,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 builder.Services.AddScoped<CourtDiscoveryService>();
+builder.Services.AddScoped<CourtSubmissionService>();
+builder.Services.AddScoped<ICourtSubmissionWriter, EfCourtSubmissionWriter>();
 builder.Services.AddScoped<ICourtDiscoveryReader, EfCourtDiscoveryReader>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.DescribeAllParametersInCamelCase());

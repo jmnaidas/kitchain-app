@@ -10,7 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideArrowLeft, LucideArrowRight } from '@lucide/angular';
 import { CourtFilters } from './components/court-filters';
 import { CourtResult } from './components/court-result';
@@ -32,7 +32,7 @@ type ExploreState =
 
 @Component({
   selector: 'app-courts',
-  imports: [CourtFilters, CourtResult, Entrance, LucideArrowLeft, LucideArrowRight],
+  imports: [RouterLink, CourtFilters, CourtResult, Entrance, LucideArrowLeft, LucideArrowRight],
   templateUrl: './courts.html',
   styleUrl: './courts.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

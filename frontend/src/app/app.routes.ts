@@ -13,6 +13,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/courts/courts').then((m) => m.Courts),
   },
   {
+    path: 'courts/add',
+    title: 'Add a Court | Kitchain',
+    loadComponent: () => import('./features/courts/pages/court-add').then((m) => m.CourtAdd),
+  },
+  {
     path: 'courts/:id',
     title: 'Court details | Kitchain',
     loadComponent: () =>

@@ -1,0 +1,131 @@
+:host {
+  display: block;
+  max-width: 52rem;
+  margin-inline: auto;
+  padding-block: 2rem 4rem;
+}
+.back {
+  font-size: 0.875rem;
+}
+header {
+  padding-block: 2.5rem 1rem;
+  max-width: 40rem;
+}
+h1 {
+  font-size: clamp(3rem, 7vw, 5rem);
+}
+h1 span {
+  color: var(--clay);
+}
+h2 {
+  font: 400 clamp(1.8rem, 4vw, 2.5rem) var(--font-display);
+}
+fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.section {
+  margin-block: 2.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+}
+.section > legend {
+  padding-right: 1rem;
+  font: 400 1.5rem var(--font-display);
+}
+.fields,
+.checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.field {
+  min-width: 0;
+}
+.field label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+input:not([type='checkbox']),
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--forest);
+  font: inherit;
+}
+textarea {
+  resize: vertical;
+}
+.help {
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
+.help,
+.section-note,
+.form-note {
+  color: var(--text-muted);
+}
+.section-note {
+  margin-top: 0;
+}
+.error {
+  color: #97361f;
+}
+[aria-invalid='true'] {
+  border-color: #97361f;
+}
+.amenities {
+  margin-top: 1.5rem;
+}
+.amenities legend {
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.checks {
+  gap: 0.5rem 1rem;
+}
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--forest);
+}
+button {
+  padding: 1rem 1.5rem;
+  border: 0;
+  border-radius: var(--radius-small);
+  color: var(--ivory);
+  background: var(--forest);
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.confirmation {
+  padding: 2rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+@media (max-width: 600px) {
+  .fields,
+  .checks {
+    grid-template-columns: 1fr;
+  }
+  button {
+    width: 100%;
+  }
+}
