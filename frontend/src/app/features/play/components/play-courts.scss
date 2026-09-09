@@ -1,6 +1,29 @@
 h2 {
   font: 400 1.7rem var(--font-display);
 }
+.score {
+  display: block;
+  font: 400 clamp(2.5rem, 7vw, 3.5rem) var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.service {
+  font-size: 0.9rem;
+}
+.rally-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.rally-actions button {
+  background: var(--forest);
+  color: var(--ivory);
+}
+.secondary-action {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
 article {
   border-top: 1px solid var(--border);
   padding-block: 1.25rem;

@@ -1,0 +1,71 @@
+form {
+  padding: 1rem;
+  margin-block: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+legend {
+  font-weight: 600;
+}
+p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+label {
+  font-size: 0.85rem;
+}
+input,
+select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  margin-top: 0.4rem;
+  background: var(--ivory);
+  color: var(--forest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+button {
+  min-height: 2.75rem;
+  padding: 0.6rem 0.85rem;
+  background: transparent;
+  color: var(--forest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+button[type='submit'] {
+  background: var(--forest);
+  color: var(--ivory);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.error {
+  color: #97361f;
+}
+@media (max-width: 360px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}

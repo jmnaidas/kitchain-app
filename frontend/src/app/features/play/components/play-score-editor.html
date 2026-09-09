@@ -1,0 +1,60 @@
+<form novalidate (submit)="submit($event)" aria-label="Correct score">
+  <fieldset [disabled]="disabled()">
+    <legend>Correct score and service</legend>
+
+    <p>Repair the current state. Saving a correction does not finish the game.</p>
+
+    <div class="fields">
+      <label>
+        Team A score
+        <input
+          name="teamAScore"
+          type="number"
+          required
+          min="0"
+          max="2147483647"
+          step="1"
+          [value]="match().teamAScore"
+        />
+      </label>
+
+      <label>
+        Team B score
+        <input
+          name="teamBScore"
+          type="number"
+          required
+          min="0"
+          max="2147483647"
+          step="1"
+          [value]="match().teamBScore"
+        />
+      </label>
+
+      <label>
+        Serving team
+        <select name="servingTeam" required [value]="match().servingTeam">
+          <option value="A">Team A</option>
+          <option value="B">Team B</option>
+        </select>
+      </label>
+
+      <label>
+        Server number
+        <select name="currentServerNumber" required [value]="match().currentServerNumber">
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+      </label>
+    </div>
+
+    @if (error()) {
+      <p class="error" role="alert">{{ error() }}</p>
+    }
+
+    <div class="actions">
+      <button type="submit">Save correction</button>
+      <button type="button" (click)="cancelEdit.emit()">Cancel</button>
+    </div>
+  </fieldset>
+</form>

@@ -18,12 +18,27 @@ public sealed record CreatePlaySession
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AddPlayGuest([Required] string DisplayName);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record RecordPlayRally
+{
+    [Required] public PlayTeam? Winner { get; init; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CorrectPlayScore
+{
+    [Required, Range(0, int.MaxValue)] public int? TeamAScore { get; init; }
+    [Required, Range(0, int.MaxValue)] public int? TeamBScore { get; init; }
+    [Required] public PlayTeam? ServingTeam { get; init; }
+    [Required, Range(1, 2)] public int? CurrentServerNumber { get; init; }
+}
+
 public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayName, PlayPlayerIdentityType IdentityType,
     PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder);
 
 public sealed record PlayMatchPlayerDetail(Guid PlayerId, string DisplayName, PlayTeam Team, int Position);
 public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus Status, DateTimeOffset StartedAt,
-    IReadOnlyList<PlayMatchPlayerDetail> Players);
+    IReadOnlyList<PlayMatchPlayerDetail> Players, int TeamAScore, int TeamBScore, PlayTeam ServingTeam, int CurrentServerNumber);
 
 public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, DateOnly SessionDate,
     TimeOnly StartTime, TimeOnly EndTime, int NumberOfCourts, int? MaximumPlayers, PlaySessionStatus Status,
@@ -87,6 +102,17 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.FinishGame(matchId, Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> RecordRallyAsync(string code, Guid matchId, RecordPlayRally input, CancellationToken cancellationToken) =>
+        UpdateAsync(code, s => s.RecordRally(matchId,
+            input.Winner ?? throw new ArgumentException("Choose a rally winner.", "winner"), Now(s)), cancellationToken);
+
+    public Task<PlaySessionDetail?> CorrectScoreAsync(string code, Guid matchId, CorrectPlayScore input, CancellationToken cancellationToken) =>
+        UpdateAsync(code, s => s.CorrectScore(matchId,
+            input.TeamAScore ?? throw new ArgumentException("Team A score is required.", "teamAScore"),
+            input.TeamBScore ?? throw new ArgumentException("Team B score is required.", "teamBScore"),
+            input.ServingTeam ?? throw new ArgumentException("Serving team is required.", "servingTeam"),
+            input.CurrentServerNumber ?? throw new ArgumentException("Server number is required.", "currentServerNumber"), Now(s)), cancellationToken);
+
     private async Task<PlaySessionDetail?> UpdateAsync(string code, Action<PlaySession> update, CancellationToken cancellationToken)
     {
         var session = await store.UpdateAsync(PlaySession.NormalizeCode(code), update, cancellationToken);
@@ -111,6 +137,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
         session.Matches.Where(m => m.Status == PlayMatchStatus.Active).OrderBy(m => m.CourtNumber)
             .Select(m => new PlayMatchDetail(m.Id, m.CourtNumber, m.Status, m.StartedAt,
                 m.Players.OrderBy(p => p.Position).Select(p => new PlayMatchPlayerDetail(p.PlayerId,
-                    session.Players.Single(player => player.Id == p.PlayerId).DisplayName, p.Team, p.Position)).ToArray()))
+                    session.Players.Single(player => player.Id == p.PlayerId).DisplayName, p.Team, p.Position)).ToArray(),
+                m.TeamAScore, m.TeamBScore, m.ServingTeam, m.CurrentServerNumber))
             .ToArray());
 }

@@ -23,7 +23,13 @@ import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayApi } from '../data-access/play-api';
 import { PlayLive, PlayLiveStatus } from '../data-access/play-live';
 import { playIssue } from '../data-access/play-errors';
-import { normalizeCode, PlaySession, validCode } from '../data-access/play.models';
+import {
+  normalizeCode,
+  PlayScoreCorrection,
+  PlaySession,
+  PlayTeam,
+  validCode,
+} from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-room',
@@ -52,6 +58,7 @@ export class PlayRoom {
   private readRequest?: Subscription;
   private mutationRequest?: Subscription;
   protected readonly session = signal<PlaySession | null>(null);
+  protected readonly correctionSaved = signal(0);
   protected readonly state = signal<'loading' | 'ready' | 'error' | 'not-found'>('loading');
   protected readonly refreshing = signal(false);
   protected readonly busy = signal<string | null>(null);
@@ -260,6 +267,21 @@ export class PlayRoom {
       'Game finished. Courts and queue are up to date.',
     );
   }
+  protected recordRally(intent: { matchId: string; winner: PlayTeam }) {
+    this.change(
+      `rally:${intent.matchId}`,
+      this.api.rally(this.code, intent.matchId, intent.winner),
+      'Rally recorded. Score, service and courts are up to date.',
+    );
+  }
+  protected correctScore(intent: { matchId: string; score: PlayScoreCorrection }) {
+    this.change(
+      `score:${intent.matchId}`,
+      this.api.correctScore(this.code, intent.matchId, intent.score),
+      'Score and service corrected.',
+      () => this.correctionSaved.update((value) => value + 1),
+    );
+  }
   protected changePlayer(change: PlayerStateChange) {
     const { player, action } = change;
     this.change(
@@ -272,7 +294,12 @@ export class PlayRoom {
         : `${player.displayName} rejoined the session. Courts and queue are up to date.`,
     );
   }
-  private change(key: string, operation: Observable<PlaySession>, notice: string) {
+  private change(
+    key: string,
+    operation: Observable<PlaySession>,
+    notice: string,
+    onSuccess?: () => void,
+  ) {
     if (this.blocked()) return;
     this.busy.set(key);
     this.problem.set('');
@@ -282,6 +309,7 @@ export class PlayRoom {
         this.accept(session);
         this.busy.set(null);
         this.notice.set(notice);
+        onSuccess?.();
       },
       error: (error: HttpErrorResponse) => {
         this.busy.set(null);

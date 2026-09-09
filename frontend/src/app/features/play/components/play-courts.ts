@@ -1,8 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
-import { PlaySession } from '../data-access/play.models';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
+import { PlayMatch, PlayScoreCorrection, PlaySession, PlayTeam } from '../data-access/play.models';
+import { PlayScoreEditor } from './play-score-editor';
 
 @Component({
   selector: 'app-play-courts',
+  imports: [PlayScoreEditor],
   templateUrl: './play-courts.html',
   styleUrl: './play-courts.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,8 +22,23 @@ export class PlayCourts {
   readonly session = input.required<PlaySession>();
   readonly disabled = input(false);
   readonly finish = output<string>();
+  readonly rally = output<{ matchId: string; winner: PlayTeam }>();
+  readonly correction = output<{ matchId: string; score: PlayScoreCorrection }>();
+  readonly correctionSaved = input(0);
+  protected readonly editing = signal<PlayMatch | null>(null);
   protected readonly confirming = signal<string | null>(null);
   protected readonly page = signal(0);
+  constructor() {
+    effect(() => {
+      this.correctionSaved();
+      untracked(() => this.editing.set(null));
+    });
+  }
+
+  protected recordRally(matchId: string, winner: PlayTeam) {
+    if (this.disabled() || this.session().status !== 'Active') return;
+    this.rally.emit({ matchId, winner });
+  }
   protected readonly courts = computed(() => {
     const session = this.session();
     const start = this.page() * 8;

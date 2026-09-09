@@ -1,6 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { CreatePlaySession, normalizeCode, PlayPlayer, PlaySession } from './play.models';
+import {
+  CreatePlaySession,
+  normalizeCode,
+  PlayPlayer,
+  PlaySession,
+  PlayScoreCorrection,
+  PlayTeam,
+} from './play.models';
 
 @Injectable({ providedIn: 'root' })
 export class PlayApi {
@@ -29,6 +36,18 @@ export class PlayApi {
     return this.http.post<PlaySession>(
       `${this.url(code)}/players/${encodeURIComponent(playerId)}/rest`,
       {},
+    );
+  }
+  rally(code: string, matchId: string, winner: PlayTeam) {
+    return this.http.post<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/rallies`,
+      { winner },
+    );
+  }
+  correctScore(code: string, matchId: string, correction: PlayScoreCorrection) {
+    return this.http.patch<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/score`,
+      correction,
     );
   }
   rejoin(code: string, playerId: string) {

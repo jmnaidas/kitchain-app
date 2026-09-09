@@ -10,12 +10,15 @@ internal sealed class PlayMatchConfiguration : IEntityTypeConfiguration<PlayMatc
     {
         match.ToTable("PlayMatches", table =>
         {
+            table.HasCheckConstraint("CK_PlayMatches_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
+            table.HasCheckConstraint("CK_PlayMatches_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");
             table.HasCheckConstraint("CK_PlayMatches_Court", "\"CourtNumber\" > 0");
             table.HasCheckConstraint("CK_PlayMatches_Status", "(\"Status\" = 'Active' AND \"CompletedAt\" IS NULL) OR (\"Status\" = 'Completed' AND \"CompletedAt\" >= \"StartedAt\" AND \"CompletedAt\" IS NOT NULL)");
         });
         match.HasKey(m => m.Id);
         match.Property(m => m.Id).ValueGeneratedNever();
         match.Property(m => m.Status).HasConversion<string>().HasMaxLength(20);
+        match.Property(m => m.ServingTeam).HasConversion<string>().HasMaxLength(1);
         match.HasIndex(m => new { m.SessionId, m.CourtNumber }).IsUnique().HasFilter("\"Status\" = 'Active'");
         match.HasMany(m => m.Players).WithOne().HasForeignKey(p => p.MatchId).OnDelete(DeleteBehavior.Cascade);
         match.Navigation(m => m.Players).UsePropertyAccessMode(PropertyAccessMode.Field);

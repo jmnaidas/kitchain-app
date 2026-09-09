@@ -135,6 +135,9 @@
               [session]="room"
               [disabled]="blocked()"
               (finish)="finishGame($event)"
+              (rally)="recordRally($event)"
+              (correction)="correctScore($event)"
+              [correctionSaved]="correctionSaved()"
             />
           } @else if (!room.players.length) {
             <div class="empty">

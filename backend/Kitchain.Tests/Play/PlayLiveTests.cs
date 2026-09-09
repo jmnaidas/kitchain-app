@@ -75,6 +75,25 @@ public sealed class PlayLiveTests
             return Task.FromResult<PlaySession?>(Session);
         }
     }
+
+    [Fact]
+    public async Task Scoring_and_correction_notify_after_commit_and_failed_scoring_does_not_notify()
+    {
+        var store = new Store();
+        store.Session.Start(store.Session.UpdatedAt);
+        var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
+        var match = store.Session.Matches.Single();
+        await controller.CorrectScore("ABCDEF", match.Id, new CorrectPlayScore { TeamAScore = 10, TeamBScore = 9, ServingTeam = PlayTeam.A, CurrentServerNumber = 2 }, default);
+        await controller.RecordRally("ABCDEF", match.Id, new RecordPlayRally { Winner = PlayTeam.A }, default);
+        Assert.Equal(PlayMatchStatus.Completed, match.Status);
+        Assert.Equal(2, notifier.Codes.Count);
+        await controller.RecordRally("ABCDEF", match.Id, new RecordPlayRally { Winner = PlayTeam.A }, default);
+        await controller.CorrectScore("ABCDEF", match.Id, new CorrectPlayScore { TeamAScore = 0, TeamBScore = 0, ServingTeam = PlayTeam.A, CurrentServerNumber = 2 }, default);
+        Assert.Equal(2, notifier.Codes.Count);
+    }
+
     private sealed class RecordingNotifier(Store store) : IPlaySessionNotifier
     {
         public List<string> Codes { get; } = [];

@@ -1,11 +1,23 @@
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
+export type PlayTeam = 'A' | 'B';
+
+export interface PlayScoreCorrection {
+  teamAScore: number;
+  teamBScore: number;
+  servingTeam: PlayTeam;
+  currentServerNumber: number;
+}
 
 export interface PlayMatch {
   id: string;
   courtNumber: number;
   status: 'Active';
   startedAt: string;
+  teamAScore: number;
+  teamBScore: number;
+  servingTeam: PlayTeam;
+  currentServerNumber: number;
   players: { playerId: string; displayName: string; team: 'A' | 'B'; position: number }[];
 }
 

@@ -272,6 +272,10 @@ describe('Play experience', () => {
           courtNumber: 1,
           status: 'Active',
           startedAt: joinedAt,
+          teamAScore: 0,
+          teamBScore: 0,
+          servingTeam: 'A',
+          currentServerNumber: 2,
           players: playing.map((p, i) => ({
             playerId: p.id,
             displayName: p.displayName,
@@ -530,5 +534,156 @@ describe('Play experience', () => {
     expect(element.querySelector<HTMLInputElement>('#guest-name')?.matches(':disabled')).toBe(
       false,
     );
+  });
+  function scoredRoom(): PlaySession {
+    const playing = crew
+      .slice(0, 4)
+      .map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null }));
+    const waiting = [
+      crew[4],
+      player('f', 'Frankie', 42),
+      player('g', 'Gale', 43),
+      player('h', 'Harper', 44),
+    ];
+    return {
+      ...room([...playing, ...waiting], waiting),
+      status: 'Active',
+      activeMatches: [
+        {
+          id: 'scored-match',
+          courtNumber: 1,
+          status: 'Active',
+          startedAt: joinedAt,
+          teamAScore: 3,
+          teamBScore: 2,
+          servingTeam: 'A',
+          currentServerNumber: 1,
+          players: playing.map((p, i) => ({
+            playerId: p.id,
+            displayName: p.displayName,
+            team: i < 2 ? 'A' : 'B',
+            position: i + 1,
+          })),
+        },
+      ],
+    };
+  }
+
+  it('renders canonical scores and service, sends both rally intents, and accepts live score reloads', async () => {
+    let state = scoredRoom();
+    await openRoom(state);
+    click('Courts');
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('3');
+    expect(element.querySelector('[aria-label="Team B score"]')?.textContent).toBe('2');
+    expect(element.textContent).toContain('Serving: Team A · Server 1');
+    click('Team A won rally');
+    const first = http.expectOne(`${base}/${code}/matches/scored-match/rallies`);
+    expect(first.request.body).toEqual({ winner: 'A' });
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('3');
+    state = { ...state, activeMatches: [{ ...state.activeMatches[0], teamAScore: 4 }] };
+    first.flush(state);
+    await settle();
+    click('Team B won rally');
+    const second = http.expectOne(`${base}/${code}/matches/scored-match/rallies`);
+    expect(second.request.body).toEqual({ winner: 'B' });
+    state = { ...state, activeMatches: [{ ...state.activeMatches[0], currentServerNumber: 2 }] };
+    second.flush(state);
+    await settle();
+    expect(element.querySelector('[aria-label="Team B score"]')?.textContent).toBe('2');
+    expect(element.textContent).toContain('Serving: Team A · Server 2');
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    state = {
+      ...state,
+      activeMatches: [{ ...state.activeMatches[0], servingTeam: 'B', currentServerNumber: 1 }],
+    };
+    http.expectOne(`${base}/${code}`).flush(state);
+    await settle();
+    expect(element.textContent).toContain('Serving: Team B · Server 1');
+    click('Team A won rally');
+    http
+      .expectOne(`${base}/${code}/matches/scored-match/rallies`)
+      .flush(
+        { errors: { winner: ['Raw internal details'] } },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle();
+    expect(element.textContent).toContain('Check your details');
+    expect(element.textContent).not.toContain('Raw internal details');
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('4');
+  });
+
+  it('validates a correction, saves the repair, then renders automatic game rotation without a finish click', async () => {
+    let state = scoredRoom();
+    await openRoom(state);
+    click('Courts');
+    click('Correct score');
+    const form = element.querySelector<HTMLFormElement>('form[aria-label="Correct score"]')!;
+    const set = (name: string, value: string) => {
+      form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`)!.value = value;
+    };
+    const save = () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      TestBed.tick();
+    };
+    set('teamAScore', '-1');
+    save();
+    expect(element.textContent).toContain('non-negative whole scores');
+    http.expectNone((request) => request.method === 'PATCH');
+    set('teamAScore', '10');
+    set('teamBScore', '9');
+    set('servingTeam', 'A');
+    set('currentServerNumber', '2');
+    save();
+    const correction = http.expectOne(`${base}/${code}/matches/scored-match/score`);
+    expect(correction.request.method).toBe('PATCH');
+    expect(correction.request.body).toEqual({
+      teamAScore: 10,
+      teamBScore: 9,
+      servingTeam: 'A',
+      currentServerNumber: 2,
+    });
+    state = {
+      ...state,
+      activeMatches: [{ ...state.activeMatches[0], ...correction.request.body }],
+    };
+    correction.flush(state);
+    await settle();
+    expect(element.querySelector('app-play-score-editor')).toBeNull();
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('10');
+    click('Team A won rally');
+    const next = state.waitingQueue;
+    const rotated: PlaySession = {
+      ...state,
+      waitingQueue: crew.slice(0, 4),
+      players: [
+        ...crew.slice(0, 4),
+        ...next.map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null })),
+      ],
+      activeMatches: [
+        {
+          ...state.activeMatches[0],
+          id: 'next-match',
+          teamAScore: 0,
+          teamBScore: 0,
+          servingTeam: 'A',
+          currentServerNumber: 2,
+          players: next.map((p, i) => ({
+            playerId: p.id,
+            displayName: p.displayName,
+            team: i < 2 ? 'A' : 'B',
+            position: i + 1,
+          })),
+        },
+      ],
+    };
+    http.expectOne(`${base}/${code}/matches/scored-match/rallies`).flush(rotated);
+    await settle();
+    expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Ellis');
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('0');
+    http.expectNone((request) => request.url.endsWith('/finish'));
+    click('Queue 4');
+    expect(queueNames()).toEqual(['Alex', 'Blair', 'Casey', 'Drew']);
   });
 });

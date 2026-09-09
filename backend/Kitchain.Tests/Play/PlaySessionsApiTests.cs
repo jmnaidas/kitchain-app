@@ -145,4 +145,40 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         Assert.NotNull(history.Single(m => m.Status == PlayMatchStatus.Completed).CompletedAt);
         Assert.All(history, game => Assert.Equal(4, game.Players.Count));
     }
+    [PostgresFact]
+    public async Task Concurrent_rallies_preserve_points_and_complete_rotate_only_once()
+    {
+        using var created = await fixture.Client.PostAsJsonAsync(Route, PlaySessionServiceTests.Input with { NumberOfCourts = 1 }, Json);
+        var session = (await created.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var url = $"{Route}/{session.JoinCode}";
+        for (var i = 1; i <= 4; i++)
+        {
+            using var added = await fixture.Client.PostAsJsonAsync($"{url}/players", new { displayName = $"Scorer {i}" });
+            Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        }
+        using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        var match = Assert.Single((await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!.ActiveMatches);
+        var rallyUrl = $"{url}/matches/{match.Id}/rallies";
+        var rallies = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => fixture.Client.PostAsJsonAsync(rallyUrl, new { winner = "A" })));
+        try { Assert.All(rallies, result => Assert.Equal(HttpStatusCode.OK, result.StatusCode)); }
+        finally { foreach (var result in rallies) result.Dispose(); }
+        var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        Assert.Equal(2, Assert.Single(saved.ActiveMatches).TeamAScore);
+        using var corrected = await fixture.Client.PatchAsJsonAsync($"{url}/matches/{match.Id}/score", new { teamAScore = 9, teamBScore = 9, servingTeam = "A", currentServerNumber = 2 });
+        Assert.Equal(HttpStatusCode.OK, corrected.StatusCode);
+        var winning = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => fixture.Client.PostAsJsonAsync(rallyUrl, new { winner = "A" })));
+        try
+        {
+            Assert.Equal(2, winning.Count(result => result.StatusCode == HttpStatusCode.OK));
+            Assert.Single(winning, result => result.StatusCode == HttpStatusCode.Conflict);
+        }
+        finally { foreach (var result in winning) result.Dispose(); }
+        await using var db = fixture.CreateDbContext();
+        var games = await db.Set<PlayMatch>().Where(m => m.SessionId == session.Id).ToListAsync();
+        Assert.Equal(2, games.Count);
+        Assert.Equal(11, games.Single(m => m.Status == PlayMatchStatus.Completed).TeamAScore);
+        Assert.Equal(0, games.Single(m => m.Status == PlayMatchStatus.Active).TeamAScore);
+        using var invalid = await fixture.Client.PostAsJsonAsync(rallyUrl, new { winner = "C" });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
 }

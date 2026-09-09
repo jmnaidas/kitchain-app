@@ -9,6 +9,7 @@
       <div class="teams">
         <div>
           <p class="eyebrow">Team A</p>
+          <span class="score" aria-label="Team A score">{{ match.teamAScore }}</span>
           @for (player of court.teamA; track player.playerId) {
             <strong>{{ player.displayName }}</strong>
           }
@@ -16,12 +17,50 @@
         <span class="versus">VS</span>
         <div>
           <p class="eyebrow">Team B</p>
+          <span class="score" aria-label="Team B score">{{ match.teamBScore }}</span>
           @for (player of court.teamB; track player.playerId) {
             <strong>{{ player.displayName }}</strong>
           }
         </div>
       </div>
+      <p class="service">
+        Serving: Team {{ match.servingTeam }} · Server {{ match.currentServerNumber }}
+      </p>
       @if (session().status === 'Active') {
+        <div class="rally-actions" [attr.aria-label]="'Rally winner on Court ' + court.number">
+          <button
+            type="button"
+            [disabled]="disabled() || editing()?.id === match.id"
+            (click)="recordRally(match.id, 'A')"
+          >
+            Team A won rally
+          </button>
+          <button
+            type="button"
+            [disabled]="disabled() || editing()?.id === match.id"
+            (click)="recordRally(match.id, 'B')"
+          >
+            Team B won rally
+          </button>
+        </div>
+        @if (editing(); as draft) {
+          @if (draft.id === match.id) {
+            <app-play-score-editor
+              [match]="draft"
+              [disabled]="disabled()"
+              (save)="correction.emit({ matchId: match.id, score: $event })"
+              (cancelEdit)="editing.set(null)"
+            />
+          }
+        }
+        <button
+          class="secondary-action"
+          type="button"
+          [disabled]="disabled()"
+          (click)="editing.set(match); confirming.set(null)"
+        >
+          Correct score
+        </button>
         @if (confirming() === match.id) {
           <div
             class="confirmation"
@@ -43,10 +82,10 @@
           <button
             type="button"
             [disabled]="disabled()"
-            (click)="confirming.set(match.id)"
+            (click)="confirming.set(match.id); editing.set(null)"
             [attr.aria-label]="'Finish game on Court ' + court.number"
           >
-            Finish Game
+            Finish Game (override)
           </button>
         }
       }

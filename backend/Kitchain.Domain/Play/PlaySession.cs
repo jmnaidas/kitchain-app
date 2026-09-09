@@ -130,6 +130,29 @@ public sealed class PlaySession
         FillFreeCourts(now);
     }
 
+    public void RecordRally(Guid matchId, PlayTeam winner, DateTimeOffset now)
+    {
+        var match = ScoringMatch(matchId, now);
+        var won = match.RecordRally(winner, GameTo, WinBy);
+        UpdatedAt = now.ToUniversalTime();
+        if (won) FinishGame(matchId, now);
+    }
+
+    public void CorrectScore(Guid matchId, int teamAScore, int teamBScore, PlayTeam servingTeam,
+        int currentServerNumber, DateTimeOffset now)
+    {
+        ScoringMatch(matchId, now).CorrectScore(teamAScore, teamBScore, servingTeam, currentServerNumber);
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    private PlayMatch ScoringMatch(Guid matchId, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can be scored.");
+        return _matches.SingleOrDefault(m => m.Id == matchId && m.Status == PlayMatchStatus.Active)
+            ?? throw new PlayConflictException("This game is no longer active.");
+    }
+
     private void FillFreeCourts(DateTimeOffset now)
     {
         if (Status != PlaySessionStatus.Active) return;

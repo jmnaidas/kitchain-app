@@ -58,6 +58,16 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> FinishGame(string code, Guid matchId, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.FinishGameAsync(code, matchId, cancellationToken));
 
+    [HttpPost("{code}/matches/{matchId:guid}/rallies")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> RecordRally(string code, Guid matchId, RecordPlayRally input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.RecordRallyAsync(code, matchId, input, cancellationToken));
+
+    [HttpPatch("{code}/matches/{matchId:guid}/score")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> CorrectScore(string code, Guid matchId, CorrectPlayScore input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.CorrectScoreAsync(code, matchId, input, cancellationToken));
+
     private Task<ActionResult<PlaySessionDetail>> SessionResult(Func<Task<PlaySessionDetail?>> operation) =>
         Execute<PlaySessionDetail>(async () =>
         {
