@@ -9,7 +9,8 @@ namespace Kitchain.Api.Play;
 // Public foundation only; organizer/player authorization is not implemented in Phase 1A.
 [ApiController]
 [Route("api/play/sessions")]
-public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<PlaySessionsController> logger) : ControllerBase
+public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<PlaySessionsController> logger,
+    IPlaySessionNotifier notifier) : ControllerBase
 {
     [HttpPost]
     [RequestSizeLimit(8192)]
@@ -37,6 +38,7 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
         Execute<PlayPlayerDetail>(async () =>
         {
             var player = await sessions.AddGuestAsync(code, input, cancellationToken);
+            if (player is not null) await notifier.ChangedAsync(PlaySession.NormalizeCode(code));
             return player is null ? NotFound() : StatusCode(StatusCodes.Status201Created, player);
         });
 
@@ -60,6 +62,7 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
         Execute<PlaySessionDetail>(async () =>
         {
             var session = await operation();
+            if (session is not null) await notifier.ChangedAsync(session.JoinCode);
             return session is null ? NotFound() : Ok(session);
         });
 

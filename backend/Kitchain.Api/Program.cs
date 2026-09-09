@@ -7,6 +7,7 @@ using Kitchain.Infrastructure.Courts;
 using System.Text.Json.Serialization;
 using Kitchain.Application.Play;
 using Kitchain.Infrastructure.Play;
+using Kitchain.Api.Play;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,8 @@ builder.Services.AddScoped<ICourtSubmissionWriter, EfCourtSubmissionWriter>();
 builder.Services.AddScoped<ICourtSubmissionModeration, EfCourtSubmissionModeration>();
 builder.Services.AddScoped<ICourtDiscoveryReader, EfCourtDiscoveryReader>();
 builder.Services.AddScoped<PlaySessionService>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IPlaySessionNotifier, SignalRPlaySessionNotifier>();
 builder.Services.AddScoped<IPlaySessionStore, EfPlaySessionStore>();
 builder.Services.AddSingleton<IPlayJoinCodeGenerator, PlayJoinCodeGenerator>();
 builder.Services.AddEndpointsApiExplorer();
@@ -42,6 +45,7 @@ if (args.Contains("--seed-courts", StringComparer.Ordinal))
 
 app.UseExceptionHandler();
 app.MapControllers();
+app.MapHub<PlayHub>("/hubs/play");
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

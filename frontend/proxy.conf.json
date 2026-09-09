@@ -1,4 +1,9 @@
 {
+  "/hubs/**": {
+    "target": "http://localhost:5080",
+    "changeOrigin": true,
+    "ws": true
+  },
   "/api/**": {
     "target": "http://localhost:5080",
     "changeOrigin": true

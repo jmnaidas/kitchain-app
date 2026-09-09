@@ -9,6 +9,7 @@ import {
   ElementRef,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -20,6 +21,7 @@ import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayApi } from '../data-access/play-api';
+import { PlayLive, PlayLiveStatus } from '../data-access/play-live';
 import { playIssue } from '../data-access/play-errors';
 import { normalizeCode, PlaySession, validCode } from '../data-access/play.models';
 
@@ -32,6 +34,10 @@ import { normalizeCode, PlaySession, validCode } from '../data-access/play.model
 })
 export class PlayRoom {
   private readonly api = inject(PlayApi);
+  private readonly live = inject(PlayLive);
+  private liveSubscription?: Subscription;
+  private readonly livePending = signal(false);
+  protected readonly liveStatus = signal<PlayLiveStatus>('offline');
   private readonly recent = inject(RecentPlaySessions);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -85,6 +91,14 @@ export class PlayRoom {
   );
 
   constructor() {
+    effect(() => {
+      if (this.livePending() && !this.busy() && !this.refreshing()) {
+        untracked(() => {
+          this.livePending.set(false);
+          if (this.session()) this.fetch(true);
+        });
+      }
+    });
     afterRenderEffect(() => {
       if (this.focusName() && this.guestInput()) {
         this.guestInput()!.nativeElement.focus();
@@ -95,6 +109,8 @@ export class PlayRoom {
       const raw = this.params().get('code') ?? '';
       const code = normalizeCode(raw);
       this.code = code;
+      this.livePending.set(false);
+      this.liveStatus.set('offline');
       this.session.set(null);
       this.state.set('loading');
       this.busy.set(null);
@@ -109,6 +125,7 @@ export class PlayRoom {
       this.view.set('queue');
       this.title.setTitle('Session Room | Kitchain');
       onCleanup(() => {
+        this.stopLive();
         this.readRequest?.unsubscribe();
         this.mutationRequest?.unsubscribe();
       });
@@ -132,6 +149,21 @@ export class PlayRoom {
     this.refreshedAt.set(new Date());
     this.title.setTitle(`${session.name} | Kitchain Play`);
   }
+  private stopLive() {
+    this.liveSubscription?.unsubscribe();
+    this.liveSubscription = undefined;
+    this.livePending.set(false);
+    this.liveStatus.set('offline');
+  }
+  private connectLive() {
+    if (this.liveSubscription) return;
+    const code = this.code;
+    this.liveSubscription = this.live.watch(code).subscribe((event) => {
+      if (this.code !== code) return;
+      if (event.kind === 'status') this.liveStatus.set(event.status);
+      else this.livePending.set(true);
+    });
+  }
   private fetch(preserveProblem = false) {
     this.readRequest?.unsubscribe();
     this.refreshing.set(true);
@@ -140,10 +172,12 @@ export class PlayRoom {
       next: (session) => {
         this.accept(session);
         this.refreshing.set(false);
+        this.connectLive();
       },
       error: (error: HttpErrorResponse) => {
         this.refreshing.set(false);
         if (error.status === 404) {
+          this.stopLive();
           this.recent.remove(this.code);
           this.session.set(null);
           this.state.set('not-found');
@@ -160,6 +194,7 @@ export class PlayRoom {
   }
   protected reload() {
     if (this.busy() || this.refreshing()) return;
+    if (this.liveStatus() === 'offline') this.stopLive();
     if (!this.session()) this.state.set('loading');
     this.notice.set('');
     this.fetch();

@@ -6,6 +6,8 @@ import { App } from '../../app';
 import { routes } from '../../app.routes';
 import { localDate, PlayPlayer, PlaySession } from './data-access/play.models';
 import { RecentPlaySessions } from './data-access/recent-play-sessions';
+import { Observable, Subject } from 'rxjs';
+import { PlayLive, PlayLiveEvent } from './data-access/play-live';
 
 const base = '/api/play/sessions';
 const code = 'ABCDEF';
@@ -61,12 +63,36 @@ describe('Play experience', () => {
   let http: HttpTestingController;
   let router: Router;
   let element: HTMLElement;
+  let liveEvents: Subject<PlayLiveEvent>;
+  let listened: string[];
+  let stopped: string[];
 
   beforeEach(async () => {
     localStorage.removeItem('kitchain.play.recent.v1');
+    liveEvents = new Subject<PlayLiveEvent>();
+    listened = [];
+    stopped = [];
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: PlayLive,
+          useValue: {
+            watch: (code: string) =>
+              new Observable<PlayLiveEvent>((observer) => {
+                listened.push(code);
+                const subscription = liveEvents.subscribe(observer);
+                return () => {
+                  stopped.push(code);
+                  subscription.unsubscribe();
+                };
+              }),
+          },
+        },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(App);
     http = TestBed.inject(HttpTestingController);
@@ -123,6 +149,48 @@ describe('Play experience', () => {
     Array.from(element.querySelectorAll('app-play-player-list strong'), (e) =>
       e.textContent?.trim(),
     );
+
+  it('subscribes after loading, coalesces live reads, and cleans up when changing sessions', async () => {
+    await openRoom();
+    expect(listened).toEqual([code]);
+    liveEvents.next({ kind: 'changed' });
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    http.expectOne(`${base}/${code}`).flush(room([crew[0]]));
+    await settle();
+    expect(queueNames()).toEqual(['Alex']);
+    await navigate('/play/s/GHJKLM');
+    expect(stopped).toEqual([code]);
+    http.expectOne(`${base}/GHJKLM`).flush({ ...room(), joinCode: 'GHJKLM' });
+    await settle();
+    expect(listened).toEqual([code, 'GHJKLM']);
+    fixture.destroy();
+    expect(stopped).toEqual([code, 'GHJKLM']);
+  });
+
+  it('defers live reload during a mutation and keeps manual refresh usable offline', async () => {
+    await openRoom();
+    fill('guest-name', 'Alex');
+    submit();
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    http.expectNone(`${base}/${code}`);
+    http.expectOne(`${base}/${code}/players`).flush(crew[0]);
+    http.expectOne(`${base}/${code}`).flush(room([crew[0]]));
+    TestBed.tick();
+    http.expectOne(`${base}/${code}`).flush(room([crew[0], crew[1]]));
+    await settle();
+    expect(queueNames()).toEqual(['Alex', 'Blair']);
+    liveEvents.next({ kind: 'status', status: 'offline' });
+    fixture.detectChanges();
+    click('Refresh');
+    http.expectOne(`${base}/${code}`).flush(room([crew[0], crew[1]]));
+    await settle();
+    expect(element.querySelector<HTMLInputElement>('#guest-name')?.matches(':disabled')).toBe(
+      false,
+    );
+    expect(listened).toEqual([code, code]);
+  });
 
   it('offers create and join from the Play landing without placeholder functionality claims', async () => {
     await navigate('/play');
@@ -223,7 +291,7 @@ describe('Play experience', () => {
       'Waiting for four',
     );
     click('Players 9');
-    expect(element.textContent).toContain('Playing · Court 1');
+    expect(element.textContent).toMatch(/Playing\s+·\s+Court 1/);
     expect(element.querySelector('[aria-label="Take a break for Alex"]')).toBeNull();
     click('Courts');
     click('Finish game on Court 1');

@@ -217,7 +217,15 @@
       </div>
       <div class="room-notes">
         <p>
-          Changes from other phones appear when you refresh.
+          <span role="status">{{
+            liveStatus() === 'live'
+              ? 'Live updates connected.'
+              : liveStatus() === 'reconnecting'
+                ? 'Reconnecting… Refresh is available.'
+                : liveStatus() === 'connecting'
+                  ? 'Connecting live updates…'
+                  : 'Live updates offline. Refresh is available.'
+          }}</span>
           @if (refreshedAt(); as time) {
             Last loaded {{ time | date: 'shortTime' }}.
           }
