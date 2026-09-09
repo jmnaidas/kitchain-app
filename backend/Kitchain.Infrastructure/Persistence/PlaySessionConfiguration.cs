@@ -30,6 +30,8 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
         session.Ignore(s => s.WaitingQueue);
         session.HasMany(s => s.Players).WithOne().HasForeignKey(p => p.SessionId).OnDelete(DeleteBehavior.Cascade);
         session.Navigation(s => s.Players).UsePropertyAccessMode(PropertyAccessMode.Field);
+        session.HasMany(s => s.Matches).WithOne().HasForeignKey(m => m.SessionId).OnDelete(DeleteBehavior.Cascade);
+        session.Navigation(s => s.Matches).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 

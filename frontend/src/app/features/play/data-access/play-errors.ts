@@ -1,6 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 const conflicts: Record<string, string> = {
+  'This game is no longer active.':
+    'This game has already finished or changed. The room will refresh.',
+  'Only an Active session can finish a game.':
+    'This session is not active. Refresh to see its current state.',
   'This session has reached its player limit.':
     'This session is full. Resting players still count toward the player limit.',
   'A player with this name is already in the session. Use a distinct name.':

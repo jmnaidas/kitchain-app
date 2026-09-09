@@ -1,6 +1,14 @@
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
 
+export interface PlayMatch {
+  id: string;
+  courtNumber: number;
+  status: 'Active';
+  startedAt: string;
+  players: { playerId: string; displayName: string; team: 'A' | 'B'; position: number }[];
+}
+
 export interface PlayPlayer {
   id: string;
   sessionId: string;
@@ -30,6 +38,7 @@ export interface PlaySession {
   updatedAt: string;
   players: PlayPlayer[];
   waitingQueue: PlayPlayer[];
+  activeMatches: PlayMatch[];
 }
 
 export interface CreatePlaySession {

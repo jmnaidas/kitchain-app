@@ -1,0 +1,79 @@
+<h2>On court.</h2>
+@for (court of courts(); track court.number) {
+  <article [attr.aria-label]="'Court ' + court.number">
+    <header>
+      <h3>Court {{ court.number }}</h3>
+      <span>{{ court.match ? 'Playing' : 'Available' }}</span>
+    </header>
+    @if (court.match; as match) {
+      <div class="teams">
+        <div>
+          <p class="eyebrow">Team A</p>
+          @for (player of court.teamA; track player.playerId) {
+            <strong>{{ player.displayName }}</strong>
+          }
+        </div>
+        <span class="versus">VS</span>
+        <div>
+          <p class="eyebrow">Team B</p>
+          @for (player of court.teamB; track player.playerId) {
+            <strong>{{ player.displayName }}</strong>
+          }
+        </div>
+      </div>
+      @if (session().status === 'Active') {
+        @if (confirming() === match.id) {
+          <div
+            class="confirmation"
+            role="group"
+            [attr.aria-label]="'Finish game on Court ' + court.number"
+          >
+            <p>
+              Finish this game? These four players return to the back, and the next four take the
+              court.
+            </p>
+            <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
+              Confirm Finish
+            </button>
+            <button type="button" [disabled]="disabled()" (click)="confirming.set(null)">
+              Cancel
+            </button>
+          </div>
+        } @else {
+          <button
+            type="button"
+            [disabled]="disabled()"
+            (click)="confirming.set(match.id)"
+            [attr.aria-label]="'Finish game on Court ' + court.number"
+          >
+            Finish Game
+          </button>
+        }
+      }
+    } @else {
+      <p>
+        {{
+          session().status === 'Draft'
+            ? 'Start the session to assign waiting players.'
+            : session().status === 'Ended'
+              ? 'This session has ended.'
+              : 'Waiting for four eligible players.'
+        }}
+      </p>
+    }
+  </article>
+}
+@if (session().numberOfCourts > 8) {
+  <nav aria-label="Court pages">
+    <button type="button" [disabled]="page() === 0" (click)="page.set(page() - 1)">
+      Previous courts
+    </button>
+    <button
+      type="button"
+      [disabled]="(page() + 1) * 8 >= session().numberOfCourts"
+      (click)="page.set(page() + 1)"
+    >
+      Next courts
+    </button>
+  </nav>
+}

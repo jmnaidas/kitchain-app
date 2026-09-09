@@ -1,0 +1,48 @@
+section {
+  padding-block: 2rem;
+  border-top: 1px solid var(--border);
+}
+h2 {
+  font: 400 2rem var(--font-display);
+}
+h3 {
+  margin: 0;
+  font: 400 1.5rem var(--font-display);
+  overflow-wrap: anywhere;
+}
+article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+article > div {
+  min-width: 0;
+}
+p {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+a,
+button {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--forest);
+  text-underline-offset: 0.3em;
+}
+button {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+@media (max-width: 440px) {
+  article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

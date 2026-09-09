@@ -52,6 +52,10 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> Start(string code, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.StartAsync(code, cancellationToken));
 
+    [HttpPost("{code}/matches/{matchId:guid}/finish")]
+    public Task<ActionResult<PlaySessionDetail>> FinishGame(string code, Guid matchId, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.FinishGameAsync(code, matchId, cancellationToken));
+
     private Task<ActionResult<PlaySessionDetail>> SessionResult(Func<Task<PlaySessionDetail?>> operation) =>
         Execute<PlaySessionDetail>(async () =>
         {

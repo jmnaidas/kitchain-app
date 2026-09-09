@@ -15,6 +15,7 @@ export interface PlayerStateChange {
 export class PlayPlayerList {
   readonly players = input.required<readonly PlayPlayer[]>();
   readonly positions = input.required<Readonly<Record<string, number>>>();
+  readonly courts = input<Readonly<Record<string, number>>>({});
   readonly featured = input(false);
   readonly disabled = input(false);
   readonly stateChange = output<PlayerStateChange>();

@@ -106,4 +106,43 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         Assert.Equal(1, await db.Set<PlaySession>().CountAsync(s => s.JoinCode == "ABCDEF"));
         Assert.Equal(1, await db.Set<PlaySession>().CountAsync(s => s.JoinCode == "GHJKLM"));
     }
+
+    [PostgresFact]
+    public async Task Concurrent_finish_persists_one_completion_and_one_replacement_without_duplicate_players()
+    {
+        using var created = await fixture.Client.PostAsJsonAsync(Route, PlaySessionServiceTests.Input with { NumberOfCourts = 1 }, Json);
+        var session = (await created.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var url = $"{Route}/{session.JoinCode}";
+        var ids = new List<Guid>();
+        for (var i = 1; i <= 8; i++)
+        {
+            using var added = await fixture.Client.PostAsJsonAsync($"{url}/players", new { displayName = $"Player {i}" });
+            Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+            ids.Add((await added.Content.ReadFromJsonAsync<PlayPlayerDetail>(Json))!.Id);
+        }
+        using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+        var active = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var match = Assert.Single(active.ActiveMatches);
+        var finishes = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
+            fixture.Client.PostAsync($"{url}/matches/{match.Id}/finish", null)));
+        try
+        {
+            Assert.Single(finishes, response => response.StatusCode == HttpStatusCode.OK);
+            Assert.Single(finishes, response => response.StatusCode == HttpStatusCode.Conflict);
+        }
+        finally { foreach (var response in finishes) response.Dispose(); }
+        var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        var replacement = Assert.Single(saved.ActiveMatches);
+        Assert.NotEqual(match.Id, replacement.Id);
+        Assert.Equal(ids.Skip(4), replacement.Players.Select(p => p.PlayerId));
+        Assert.Equal(ids.Take(4), saved.WaitingQueue.Select(p => p.Id));
+        Assert.Equal(4, saved.Players.Count(p => p.State == PlayPlayerState.Playing));
+        await using var db = fixture.CreateDbContext();
+        var history = await db.Set<PlayMatch>().AsNoTracking().Include(m => m.Players)
+            .Where(m => m.SessionId == session.Id).ToListAsync();
+        Assert.Equal(2, history.Count);
+        Assert.NotNull(history.Single(m => m.Status == PlayMatchStatus.Completed).CompletedAt);
+        Assert.All(history, game => Assert.Equal(4, game.Players.Count));
+    }
 }

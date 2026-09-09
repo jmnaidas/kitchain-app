@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { PlayApi } from '../data-access/play-api';
 import { playIssue } from '../data-access/play-errors';
 import { normalizeCode, validCode } from '../data-access/play.models';
+import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 
 @Component({
   selector: 'app-play-join',
@@ -15,6 +16,7 @@ import { normalizeCode, validCode } from '../data-access/play.models';
 })
 export class PlayJoin {
   private readonly api = inject(PlayApi);
+  private readonly recent = inject(RecentPlaySessions);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly code = signal('');
@@ -44,6 +46,7 @@ export class PlayJoin {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (session) => {
+          this.recent.remember(session.joinCode);
           void this.router.navigate(['/play/s', session.joinCode]);
         },
         error: (error: HttpErrorResponse) => {

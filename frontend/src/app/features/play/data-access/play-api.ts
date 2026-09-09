@@ -19,6 +19,12 @@ export class PlayApi {
   start(code: string) {
     return this.http.post<PlaySession>(`${this.url(code)}/start`, {});
   }
+  finish(code: string, matchId: string) {
+    return this.http.post<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/finish`,
+      {},
+    );
+  }
   rest(code: string, playerId: string) {
     return this.http.post<PlaySession>(
       `${this.url(code)}/players/${encodeURIComponent(playerId)}/rest`,

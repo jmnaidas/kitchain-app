@@ -34,6 +34,22 @@ public sealed class PlaySessionPlayer
     public DateTimeOffset UpdatedAt { get; private set; }
     public long? QueueOrder { get; private set; }
 
+    internal void Play(DateTimeOffset now)
+    {
+        if (State != PlayPlayerState.Waiting) throw new PlayConflictException("Only a Waiting player can play.");
+        State = PlayPlayerState.Playing;
+        QueueOrder = null;
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    internal void Finish(long queueOrder, DateTimeOffset now)
+    {
+        if (State != PlayPlayerState.Playing) throw new PlayConflictException("Only a Playing player can finish a game.");
+        State = PlayPlayerState.Waiting;
+        QueueOrder = queueOrder;
+        UpdatedAt = now.ToUniversalTime();
+    }
+
     internal void Rest(DateTimeOffset now)
     {
         if (State != PlayPlayerState.Waiting) throw new PlayConflictException("Only a Waiting player can take a break.");

@@ -111,6 +111,13 @@
           <nav class="views" aria-label="Session views">
             <button
               type="button"
+              [attr.aria-pressed]="view() === 'courts'"
+              (click)="view.set('courts')"
+            >
+              Courts
+            </button>
+            <button
+              type="button"
               [attr.aria-pressed]="view() === 'queue'"
               (click)="view.set('queue')"
             >
@@ -123,7 +130,13 @@
               Players <span>{{ room.players.length }}</span>
             </button>
           </nav>
-          @if (!room.players.length) {
+          @if (view() === 'courts') {
+            <app-play-courts
+              [session]="room"
+              [disabled]="blocked()"
+              (finish)="finishGame($event)"
+            />
+          } @else if (!room.players.length) {
             <div class="empty">
               <p class="eyebrow">Room for a good game</p>
               <h2>Your court crew starts here.</h2>
@@ -194,6 +207,7 @@
             </div>
             <app-play-player-list
               [players]="room.players"
+              [courts]="playerCourts()"
               [positions]="positions()"
               [disabled]="blocked()"
               (stateChange)="changePlayer($event)"

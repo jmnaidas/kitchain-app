@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { PlayApi } from '../data-access/play-api';
 import { playIssue } from '../data-access/play-errors';
 import { localDate } from '../data-access/play.models';
+import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 
 @Component({
   selector: 'app-play-create',
@@ -15,6 +16,7 @@ import { localDate } from '../data-access/play.models';
 })
 export class PlayCreate {
   private readonly api = inject(PlayApi);
+  private readonly recent = inject(RecentPlaySessions);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly today = localDate();
@@ -66,6 +68,7 @@ export class PlayCreate {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (session) => {
+          this.recent.remember(session.joinCode);
           this.createdCode.set(session.joinCode);
           void this.router.navigate(['/play/s', session.joinCode]);
         },

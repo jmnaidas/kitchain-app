@@ -21,11 +21,15 @@ public sealed record AddPlayGuest([Required] string DisplayName);
 public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayName, PlayPlayerIdentityType IdentityType,
     PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder);
 
+public sealed record PlayMatchPlayerDetail(Guid PlayerId, string DisplayName, PlayTeam Team, int Position);
+public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus Status, DateTimeOffset StartedAt,
+    IReadOnlyList<PlayMatchPlayerDetail> Players);
+
 public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, DateOnly SessionDate,
     TimeOnly StartTime, TimeOnly EndTime, int NumberOfCourts, int? MaximumPlayers, PlaySessionStatus Status,
     PlayRotationMode RotationMode, PlayScoringMode ScoringMode, int GameTo, int WinBy,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<PlayPlayerDetail> Players,
-    IReadOnlyList<PlayPlayerDetail> WaitingQueue);
+    IReadOnlyList<PlayPlayerDetail> WaitingQueue, IReadOnlyList<PlayMatchDetail> ActiveMatches);
 
 public interface IPlayJoinCodeGenerator
 {
@@ -80,6 +84,9 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> StartAsync(string code, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.Start(Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken) =>
+        UpdateAsync(code, s => s.FinishGame(matchId, Now(s)), cancellationToken);
+
     private async Task<PlaySessionDetail?> UpdateAsync(string code, Action<PlaySession> update, CancellationToken cancellationToken)
     {
         var session = await store.UpdateAsync(PlaySession.NormalizeCode(code), update, cancellationToken);
@@ -100,5 +107,10 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
         session.Status, session.RotationMode, session.ScoringMode, session.GameTo, session.WinBy,
         session.CreatedAt, session.UpdatedAt,
         session.Players.OrderBy(p => p.JoinedAt).ThenBy(p => p.Id).Select(Player).ToArray(),
-        session.WaitingQueue.Select(Player).ToArray());
+        session.WaitingQueue.Select(Player).ToArray(),
+        session.Matches.Where(m => m.Status == PlayMatchStatus.Active).OrderBy(m => m.CourtNumber)
+            .Select(m => new PlayMatchDetail(m.Id, m.CourtNumber, m.Status, m.StartedAt,
+                m.Players.OrderBy(p => p.Position).Select(p => new PlayMatchPlayerDetail(p.PlayerId,
+                    session.Players.Single(player => player.Id == p.PlayerId).DisplayName, p.Team, p.Position)).ToArray()))
+            .ToArray());
 }

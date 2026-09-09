@@ -3,6 +3,7 @@ using System;
 using Kitchain.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kitchain.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(KitchainDbContext))]
-    partial class KitchainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260909140000_AddPlayMatches")]
+    partial class AddPlayMatches
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

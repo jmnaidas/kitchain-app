@@ -10,6 +10,7 @@ public sealed class PlaySession
     public const string JoinCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     public const int JoinCodeLength = 6;
     private readonly List<PlaySessionPlayer> _players = [];
+    private readonly List<PlayMatch> _matches = [];
     private PlaySession() { }
 
     public PlaySession(Guid id, string joinCode, string name, DateOnly sessionDate, TimeOnly startTime,
@@ -63,6 +64,7 @@ public sealed class PlaySession
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<PlaySessionPlayer> Players => _players.AsReadOnly();
+    public IReadOnlyCollection<PlayMatch> Matches => _matches.AsReadOnly();
     public IReadOnlyList<PlaySessionPlayer> WaitingQueue => _players.Where(p => p.State == PlayPlayerState.Waiting)
         .OrderBy(p => p.QueueOrder).ThenBy(p => p.Id).ToArray();
 
@@ -80,6 +82,7 @@ public sealed class PlaySession
         _players.Add(player);
         NextQueueOrder = player.QueueOrder!.Value;
         UpdatedAt = now.ToUniversalTime();
+        FillFreeCourts(now);
         return player;
     }
 
@@ -98,6 +101,7 @@ public sealed class PlaySession
         player.Rejoin(ticket, now);
         NextQueueOrder = ticket;
         UpdatedAt = now.ToUniversalTime();
+        FillFreeCourts(now);
     }
 
     public void Start(DateTimeOffset now)
@@ -106,6 +110,41 @@ public sealed class PlaySession
         EnsureTimestamp(now);
         Status = PlaySessionStatus.Active;
         UpdatedAt = now.ToUniversalTime();
+        FillFreeCourts(now);
+    }
+
+    public void FinishGame(Guid matchId, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can finish a game.");
+        var match = _matches.SingleOrDefault(m => m.Id == matchId && m.Status == PlayMatchStatus.Active)
+            ?? throw new PlayConflictException("This game is no longer active.");
+        var returning = match.Players.OrderBy(p => p.Position).Select(p => FindPlayer(p.PlayerId)).ToArray();
+        if (returning.Length != 4 || returning.Any(p => p.State != PlayPlayerState.Playing))
+            throw new PlayConflictException("The game participants have changed. Refresh the session.");
+        if (NextQueueOrder > long.MaxValue - 4)
+            throw new PlayConflictException("This session cannot allocate another queue position.");
+        match.Complete(now);
+        foreach (var player in returning) player.Finish(++NextQueueOrder, now);
+        UpdatedAt = now.ToUniversalTime();
+        FillFreeCourts(now);
+    }
+
+    private void FillFreeCourts(DateTimeOffset now)
+    {
+        if (Status != PlaySessionStatus.Active) return;
+        var waiting = new Queue<PlaySessionPlayer>(WaitingQueue);
+        var occupied = _matches.Where(m => m.Status == PlayMatchStatus.Active)
+            .Select(m => m.CourtNumber).ToHashSet();
+        // Stop when the queue runs out, even if the configured court count is very large.
+        for (long court = 1; court <= NumberOfCourts && waiting.Count >= 4; court++)
+        {
+            if (occupied.Contains((int)court)) continue;
+            var players = Enumerable.Range(0, 4).Select(_ => waiting.Dequeue()).ToArray();
+            var match = new PlayMatch(Id, (int)court, players, now);
+            foreach (var player in players) player.Play(now);
+            _matches.Add(match);
+        }
     }
 
     public void End(DateTimeOffset now)

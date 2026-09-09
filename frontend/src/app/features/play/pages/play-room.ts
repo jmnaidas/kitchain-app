@@ -17,19 +17,22 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, Subscription, switchMap, tap } from 'rxjs';
 import { PlayPlayerList, PlayerStateChange } from '../components/play-player-list';
 import { PlaySessionHeader } from '../components/play-session-header';
+import { PlayCourts } from '../components/play-courts';
+import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayApi } from '../data-access/play-api';
 import { playIssue } from '../data-access/play-errors';
 import { normalizeCode, PlaySession, validCode } from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-room',
-  imports: [RouterLink, DatePipe, PlayPlayerList, PlaySessionHeader],
+  imports: [RouterLink, DatePipe, PlayPlayerList, PlaySessionHeader, PlayCourts],
   templateUrl: './play-room.html',
   styleUrl: './play-room.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlayRoom {
   private readonly api = inject(PlayApi);
+  private readonly recent = inject(RecentPlaySessions);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly title = inject(Title);
@@ -53,7 +56,14 @@ export class PlayRoom {
   protected readonly shareFallback = signal('');
   protected readonly guestName = signal('');
   protected readonly nameError = signal('');
-  protected readonly view = signal<'queue' | 'players'>('queue');
+  protected readonly view = signal<'courts' | 'queue' | 'players'>('queue');
+  protected readonly playerCourts = computed(() =>
+    Object.fromEntries(
+      (this.session()?.activeMatches ?? []).flatMap((match) =>
+        match.players.map((player) => [player.playerId, match.courtNumber]),
+      ),
+    ),
+  );
   protected readonly refreshedAt = signal<Date | null>(null);
   protected readonly blocked = computed(
     () =>
@@ -115,6 +125,7 @@ export class PlayRoom {
   }
 
   private accept(session: PlaySession) {
+    this.recent.remember(session.joinCode);
     this.session.set(session);
     this.state.set('ready');
     this.needsRefresh.set(false);
@@ -133,6 +144,7 @@ export class PlayRoom {
       error: (error: HttpErrorResponse) => {
         this.refreshing.set(false);
         if (error.status === 404) {
+          this.recent.remove(this.code);
           this.session.set(null);
           this.state.set('not-found');
         } else if (this.session()) {
@@ -205,6 +217,14 @@ export class PlayRoom {
     if (this.session()?.status !== 'Draft') return;
     this.change('start', this.api.start(this.code), 'Session started. Your crew is ready.');
   }
+  protected finishGame(matchId: string) {
+    if (this.session()?.status !== 'Active') return;
+    this.change(
+      `finish:${matchId}`,
+      this.api.finish(this.code, matchId),
+      'Game finished. Courts and queue are up to date.',
+    );
+  }
   protected changePlayer(change: PlayerStateChange) {
     const { player, action } = change;
     this.change(
@@ -214,7 +234,7 @@ export class PlayRoom {
         : this.api.rejoin(this.code, player.id),
       action === 'rest'
         ? `${player.displayName} is taking a break.`
-        : `${player.displayName} rejoined the back of the queue.`,
+        : `${player.displayName} rejoined the session. Courts and queue are up to date.`,
     );
   }
   private change(key: string, operation: Observable<PlaySession>, notice: string) {

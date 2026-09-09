@@ -1,0 +1,33 @@
+@if (loading() || sessions().length || failed()) {
+  <section aria-labelledby="recent-title" [attr.aria-busy]="loading()">
+    <p class="eyebrow">Recent sessions / This device</p>
+    <h2 id="recent-title">Continue playing.</h2>
+    @if (loading()) {
+      <p role="status">Finding your recent sessions…</p>
+    }
+    @for (session of sessions(); track session.joinCode) {
+      <article>
+        <div>
+          <h3>{{ session.name }}</h3>
+          <p>
+            {{ session.status }} · {{ session.sessionDate | date: 'MMM d, y' }} ·
+            {{ session.sessionDate + 'T' + session.startTime | date: 'shortTime' }} –
+            {{ session.sessionDate + 'T' + session.endTime | date: 'shortTime' }}
+          </p>
+          <p>
+            {{ session.players.length }} {{ session.players.length === 1 ? 'player' : 'players' }} ·
+            {{ session.numberOfCourts }} {{ session.numberOfCourts === 1 ? 'court' : 'courts' }} ·
+            <code>{{ session.joinCode }}</code>
+          </p>
+        </div>
+        <a [routerLink]="['/play/s', session.joinCode]" [attr.aria-label]="'Resume ' + session.name"
+          >Resume →</a
+        >
+      </article>
+    }
+    @if (failed()) {
+      <p role="status">Some recent sessions couldn’t be loaded. Your codes are still saved.</p>
+      <button type="button" [disabled]="loading()" (click)="load()">Try again</button>
+    }
+  </section>
+}

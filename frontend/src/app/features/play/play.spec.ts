@@ -5,6 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { App } from '../../app';
 import { routes } from '../../app.routes';
 import { localDate, PlayPlayer, PlaySession } from './data-access/play.models';
+import { RecentPlaySessions } from './data-access/recent-play-sessions';
 
 const base = '/api/play/sessions';
 const code = 'ABCDEF';
@@ -52,6 +53,7 @@ const room = (
   updatedAt: joinedAt,
   players,
   waitingQueue,
+  activeMatches: [],
 });
 
 describe('Play experience', () => {
@@ -61,6 +63,7 @@ describe('Play experience', () => {
   let element: HTMLElement;
 
   beforeEach(async () => {
+    localStorage.removeItem('kitchain.play.recent.v1');
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
@@ -71,7 +74,10 @@ describe('Play experience', () => {
     element = fixture.nativeElement;
     fixture.detectChanges();
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    localStorage.removeItem('kitchain.play.recent.v1');
+    http.verify();
+  });
   async function navigate(url: string) {
     await router.navigateByUrl(url);
     fixture.detectChanges();
@@ -96,7 +102,9 @@ describe('Play experience', () => {
   }
   function button(label: string) {
     const result = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
-      (b) => b.textContent?.trim() === label || b.getAttribute('aria-label') === label,
+      (b) =>
+        b.textContent?.replace(/\s+/g, ' ').trim() === label ||
+        b.getAttribute('aria-label') === label,
     );
     if (!result) throw new Error(`Missing button: ${label}`);
     return result;
@@ -123,6 +131,135 @@ describe('Play experience', () => {
     expect(element.querySelector('a[href="/play/new"]')?.textContent).toContain('Start a Session');
     expect(element.querySelector('a[href="/play/join"]')?.textContent).toContain('Join with Code');
     expect(element.textContent).not.toContain('not available yet');
+  });
+
+  it('loads recent sessions in access order, removes missing codes and resumes using the live API', async () => {
+    localStorage.setItem(
+      'kitchain.play.recent.v1',
+      JSON.stringify([
+        { code: 'GHJKLM', accessedAt: 1 },
+        { code, accessedAt: 3 },
+        { code: 'NPQRST', accessedAt: 2 },
+      ]),
+    );
+    await navigate('/play');
+    http.expectOne(`${base}/${code}`).flush(room());
+    http
+      .expectOne(`${base}/NPQRST`)
+      .flush({ ...room(), joinCode: 'NPQRST', name: 'Older crew', status: 'Ended' });
+    http.expectOne(`${base}/GHJKLM`).flush({}, { status: 404, statusText: 'Not Found' });
+    await settle();
+    expect(
+      Array.from(element.querySelectorAll('app-play-recent h3'), (e) => e.textContent),
+    ).toEqual(['Evening crew', 'Older crew']);
+    expect(
+      TestBed.inject(RecentPlaySessions)
+        .list()
+        .map((e) => e.code),
+    ).toEqual([code, 'NPQRST']);
+    element.querySelector<HTMLAnchorElement>('a[aria-label="Resume Evening crew"]')!.click();
+    await settle();
+    expect(router.url).toBe(`/play/s/${code}`);
+    http.expectOne(`${base}/${code}`).flush(room());
+    await settle();
+    expect(element.querySelector('h1')?.textContent).toContain('Evening crew');
+    const stored = JSON.parse(localStorage.getItem('kitchain.play.recent.v1')!);
+    expect(Object.keys(stored[0]).sort()).toEqual(['accessedAt', 'code']);
+  });
+
+  it('bounds and deduplicates recent codes, tolerates invalid storage and retains codes on network failure', async () => {
+    localStorage.setItem('kitchain.play.recent.v1', '{broken');
+    const recent = TestBed.inject(RecentPlaySessions);
+    expect(recent.list()).toEqual([]);
+    for (const last of 'ABCDEFGHJ') recent.remember(`AAAAA${last}`);
+    recent.remember(' aaaaaj ');
+    expect(recent.list()).toHaveLength(8);
+    expect(recent.list()[0].code).toBe('AAAAAJ');
+    for (const entry of recent.list()) recent.remove(entry.code);
+    recent.remember(code);
+    await navigate('/play');
+    http.expectOne(`${base}/${code}`).flush({}, { status: 503, statusText: 'Unavailable' });
+    await settle();
+    expect(recent.list()[0].code).toBe(code);
+    expect(element.textContent).toContain('codes are still saved');
+  });
+
+  it('renders active courts and player court labels while keeping Playing players out of Next Up', async () => {
+    const playing = crew
+      .slice(0, 4)
+      .map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null }));
+    const waiting = [
+      crew[4],
+      player('f', 'Frankie', 42),
+      player('g', 'Gale', 43),
+      player('h', 'Harper', 44),
+      player('i', 'Indy', 45),
+    ];
+    const active: PlaySession = {
+      ...room([...playing, ...waiting], waiting),
+      status: 'Active',
+      activeMatches: [
+        {
+          id: 'match-1',
+          courtNumber: 1,
+          status: 'Active',
+          startedAt: joinedAt,
+          players: playing.map((p, i) => ({
+            playerId: p.id,
+            displayName: p.displayName,
+            team: i < 2 ? 'A' : 'B',
+            position: i + 1,
+          })),
+        },
+      ],
+    };
+    await openRoom(active);
+    expect(queueNames()).toEqual(['Ellis', 'Frankie', 'Gale', 'Harper', 'Indy']);
+    expect(element.querySelectorAll('.next-up li')).toHaveLength(4);
+    click('Courts');
+    expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
+    expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Team B');
+    expect(element.querySelector('article[aria-label="Court 2"]')?.textContent).toContain(
+      'Waiting for four',
+    );
+    click('Players 9');
+    expect(element.textContent).toContain('Playing · Court 1');
+    expect(element.querySelector('[aria-label="Take a break for Alex"]')).toBeNull();
+    click('Courts');
+    click('Finish game on Court 1');
+    http.expectNone(`${base}/${code}/matches/match-1/finish`);
+    click('Cancel');
+    click('Finish game on Court 1');
+    click('Confirm Finish');
+    const finish = http.expectOne(`${base}/${code}/matches/match-1/finish`);
+    expect(finish.request.method).toBe('POST');
+    const returned = {
+      ...active,
+      activeMatches: [
+        {
+          ...active.activeMatches[0],
+          id: 'match-2',
+          players: waiting.slice(0, 4).map((p, i) => ({
+            playerId: p.id,
+            displayName: p.displayName,
+            team: i < 2 ? 'A' : 'B',
+            position: i + 1,
+          })),
+        },
+      ],
+      waitingQueue: [waiting[4], ...crew.slice(0, 4)],
+      players: [
+        ...waiting.slice(0, 4).map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null })),
+        waiting[4],
+        ...crew.slice(0, 4),
+      ],
+    };
+    finish.flush(returned);
+    await settle();
+    expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Ellis');
+    click('Queue 5');
+    expect(queueNames()).toEqual(['Indy', 'Alex', 'Blair', 'Casey', 'Drew']);
+    http.expectNone(`${base}/${code}`);
   });
 
   it('defaults to local date and one court, and validates required fields, times and whole numbers', async () => {

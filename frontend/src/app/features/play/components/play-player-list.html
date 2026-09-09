@@ -8,7 +8,12 @@
       }
       <div class="identity">
         <strong>{{ player.displayName }}</strong
-        ><span class="state">{{ player.state }}</span>
+        ><span class="state"
+          >{{ player.state }}
+          @if (player.state === 'Playing' && courts()[player.id]) {
+            · Court {{ courts()[player.id] }}
+          }
+        </span>
       </div>
       @if (player.state !== 'Playing') {
         <button
