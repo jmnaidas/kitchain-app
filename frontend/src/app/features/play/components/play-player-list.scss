@@ -1,0 +1,85 @@
+:host {
+  display: block;
+}
+ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+li {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 5rem;
+  padding: 1rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.position {
+  font: 400 1.7rem var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.player-mark {
+  font: italic 1.25rem var(--font-display);
+  color: var(--text-muted);
+}
+.identity {
+  display: grid;
+  gap: 0.15rem;
+  overflow-wrap: anywhere;
+}
+strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.state {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  min-height: 2.75rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.featured {
+  background: var(--forest);
+  color: var(--ivory);
+  padding-inline: 1.2rem;
+  border-radius: var(--radius-small);
+}
+.featured li {
+  border-color: #ffffff30;
+}
+.featured li:last-child {
+  border-bottom: 0;
+}
+.featured .position {
+  color: #d9dc9b;
+}
+.featured .state {
+  color: #d4dace;
+}
+.featured button {
+  border-color: #b9c6b9;
+}
+@media (max-width: 400px) {
+  li {
+    gap: 0.5rem;
+    grid-template-columns: 1.6rem minmax(0, 1fr) 5.4rem;
+  }
+  .featured {
+    padding-inline: 0.75rem;
+  }
+  button {
+    padding-inline: 0.35rem;
+  }
+}

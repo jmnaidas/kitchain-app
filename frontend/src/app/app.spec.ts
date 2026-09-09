@@ -43,7 +43,7 @@ describe('Kitchain foundation', () => {
   it.each([
     ['/', 'Your pickleball', 'Home'],
     ['/courts', 'Find your place', 'Courts'],
-    ['/play', 'Good games. Good company.', 'Play'],
+    ['/play', 'Bring the group', 'Play'],
     ['/gear', 'Make it your game.', 'Gear'],
   ])('renders %s and exposes its active navigation state', async (url, heading, label) => {
     const fixture = TestBed.createComponent(App);
@@ -61,7 +61,7 @@ describe('Kitchain foundation', () => {
         .querySelector('nav[aria-label="Mobile primary"] [aria-current="page"]')
         ?.textContent?.trim(),
     ).toBe(label);
-    if (url !== '/courts')
+    if (url !== '/courts' && url !== '/play')
       expect(element.querySelector('.foundation-note')?.textContent).toMatch(
         /still to come|not available yet/,
       );

@@ -1,0 +1,37 @@
+<header class="room-header">
+  <div>
+    <p class="eyebrow">Play / Your court crew</p>
+    <h1>{{ session().name }}</h1>
+    <p class="schedule">
+      {{ session().sessionDate | date: 'EEE, MMM d, y' }}<br />{{
+        session().sessionDate + 'T' + session().startTime | date: 'shortTime'
+      }}
+      – {{ session().sessionDate + 'T' + session().endTime | date: 'shortTime' }}
+    </p>
+    <div class="meta">
+      <span class="status" [attr.data-state]="session().status">{{ session().status }}</span
+      ><span
+        >{{ session().numberOfCourts }}
+        {{ session().numberOfCourts === 1 ? 'court' : 'courts' }}</span
+      ><span
+        >{{ session().players.length
+        }}{{ session().maximumPlayers !== null ? ' / ' + session().maximumPlayers : '' }}
+        {{
+          session().players.length === 1 && session().maximumPlayers === null ? 'player' : 'players'
+        }}</span
+      >
+    </div>
+  </div>
+  <section class="share" aria-labelledby="share-label">
+    <p id="share-label" class="eyebrow">Your group’s code</p>
+    <code>{{ session().joinCode }}</code>
+    <div class="share-actions">
+      <button type="button" (click)="copyRequested.emit('code')">Copy code</button
+      ><button type="button" (click)="copyRequested.emit('link')">Copy link</button>
+    </div>
+    <p class="help" role="status">{{ shareNotice() }}</p>
+    @if (shareFallback()) {
+      <p class="copy-fallback">{{ shareFallback() }}</p>
+    }
+  </section>
+</header>

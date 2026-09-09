@@ -1,0 +1,34 @@
+<a class="back" routerLink="/play">← Back to Play</a>
+<header>
+  <p class="eyebrow">Play / Join your crew</p>
+  <h1>Got a code<span>?</span><br />You’re in good company.</h1>
+  <p>Enter your group’s session code to open the room. You can add your name once you’re there.</p>
+</header>
+<form class="join-form" novalidate (submit)="submit($event)" [attr.aria-busy]="busy()">
+  <label for="join-code">Session code</label>
+  <input
+    id="join-code"
+    name="code"
+    class="code-input"
+    [value]="code()"
+    (input)="input($event)"
+    [disabled]="busy()"
+    required
+    maxlength="16"
+    autocomplete="off"
+    autocapitalize="characters"
+    [spellcheck]="false"
+    aria-describedby="code-help join-error"
+    [attr.aria-invalid]="invalid()"
+  />
+  <p class="help" id="code-help">Six characters. Ask someone in your group for the code.</p>
+  <div id="join-error">
+    @if (problem()) {
+      <p class="error" role="alert">{{ problem() }}</p>
+    }
+  </div>
+  <button type="submit" class="primary" [disabled]="busy()">
+    {{ busy() ? 'Finding your session…' : 'Open Session →' }}
+  </button>
+</form>
+<p class="form-note">Starting something new? <a routerLink="/play/new">Create a session</a>.</p>

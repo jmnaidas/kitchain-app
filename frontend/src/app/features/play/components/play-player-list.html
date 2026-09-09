@@ -1,0 +1,28 @@
+<ol [class.featured]="featured()">
+  @for (player of players(); track player.id) {
+    <li>
+      @if (positions()[player.id]; as position) {
+        <span class="position"><span class="sr-only">Queue position </span>{{ position }}</span>
+      } @else {
+        <span class="player-mark" aria-hidden="true">K</span>
+      }
+      <div class="identity">
+        <strong>{{ player.displayName }}</strong
+        ><span class="state">{{ player.state }}</span>
+      </div>
+      @if (player.state !== 'Playing') {
+        <button
+          type="button"
+          [disabled]="disabled()"
+          (click)="change(player)"
+          [attr.aria-label]="
+            (player.state === 'Waiting' ? 'Take a break for ' : 'Rejoin queue for ') +
+            player.displayName
+          "
+        >
+          {{ player.state === 'Waiting' ? 'Take a Break' : 'Rejoin Queue' }}
+        </button>
+      }
+    </li>
+  }
+</ol>

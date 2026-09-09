@@ -1,0 +1,123 @@
+<a class="back" routerLink="/play">← Back to Play</a>
+<header>
+  <p class="eyebrow">Play / Start a session</p>
+  <h1>Make room<br />for a good game<span>.</span></h1>
+  <p>Set a time. Share the code. Bring your crew.</p>
+</header>
+@if (createdCode(); as code) {
+  <p role="status">Your session is ready.</p>
+  <a class="primary" [routerLink]="['/play/s', code]">Open session →</a>
+} @else {
+  <form novalidate (submit)="submit($event)" [attr.aria-busy]="busy()">
+    <fieldset [disabled]="busy()">
+      <legend class="sr-only">Session details</legend>
+      <p class="muted">All fields are required unless marked optional.</p>
+      <div class="field">
+        <label for="session-name">Session name</label>
+        <input
+          id="session-name"
+          name="name"
+          value="Pickleball Session"
+          required
+          maxlength="200"
+          autocomplete="off"
+          [attr.aria-invalid]="!!errors()['name']"
+          aria-describedby="name-help"
+          (blur)="validate($event)"
+        />
+        <p class="help error" id="name-help">{{ errors()['name'] }}</p>
+      </div>
+      <div class="field">
+        <label for="session-date">Date</label>
+        <input
+          id="session-date"
+          type="date"
+          name="date"
+          [value]="today"
+          required
+          min="0001-01-02"
+          max="9999-12-31"
+          [attr.aria-invalid]="!!errors()['date']"
+          aria-describedby="date-help"
+          (blur)="validate($event)"
+        />
+        <p class="help error" id="date-help">{{ errors()['date'] }}</p>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label for="start-time">Start time</label>
+          <input
+            id="start-time"
+            name="startTime"
+            type="time"
+            step="60"
+            required
+            [attr.aria-invalid]="!!errors()['startTime']"
+            aria-describedby="start-help"
+            (blur)="validate($event)"
+          />
+          <p class="help error" id="start-help">{{ errors()['startTime'] }}</p>
+        </div>
+        <div class="field">
+          <label for="end-time">End time</label>
+          <input
+            id="end-time"
+            name="endTime"
+            type="time"
+            step="60"
+            required
+            [attr.aria-invalid]="!!errors()['endTime']"
+            aria-describedby="end-help"
+            (blur)="validate($event)"
+          />
+          <p class="help" id="end-help" [class.error]="errors()['endTime']">
+            {{ errors()['endTime'] || 'On the same day as your start time.' }}
+          </p>
+        </div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label for="court-count">Number of courts</label>
+          <input
+            id="court-count"
+            name="numberOfCourts"
+            type="number"
+            value="1"
+            min="1"
+            max="2147483647"
+            step="1"
+            required
+            [attr.aria-invalid]="!!errors()['numberOfCourts']"
+            aria-describedby="courts-help"
+            (blur)="validate($event)"
+          />
+          <p class="help error" id="courts-help">{{ errors()['numberOfCourts'] }}</p>
+        </div>
+        <div class="field">
+          <label for="player-limit">Maximum players <span>(optional)</span></label>
+          <input
+            id="player-limit"
+            name="maximumPlayers"
+            type="number"
+            min="1"
+            max="2147483647"
+            step="1"
+            [attr.aria-invalid]="!!errors()['maximumPlayers']"
+            aria-describedby="limit-help"
+            (blur)="validate($event)"
+          />
+          <p class="help" id="limit-help" [class.error]="errors()['maximumPlayers']">
+            {{ errors()['maximumPlayers'] || 'Leave blank for an open roster.' }}
+          </p>
+        </div>
+      </div>
+      <p class="form-note">Fair turns are the default. Add your players once the room is ready.</p>
+      <button class="primary" type="submit">
+        {{ busy() ? 'Creating your session…' : 'Create Session →' }}
+      </button>
+    </fieldset>
+    @if (problem()) {
+      <p role="alert" class="error">{{ problem() }}</p>
+    }
+  </form>
+}

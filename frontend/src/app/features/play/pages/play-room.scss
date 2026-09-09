@@ -1,0 +1,232 @@
+.session-actions,
+.draft,
+.section-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+:host {
+  display: block;
+  padding-block: 1.5rem 2rem;
+}
+.back {
+  font-size: 0.875rem;
+  text-underline-offset: 0.3em;
+}
+h1 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  overflow-wrap: anywhere;
+}
+h1 span,
+h2 span {
+  color: var(--clay);
+}
+h2 {
+  font: 400 1.7rem var(--font-display);
+  margin: 0;
+}
+button {
+  cursor: pointer;
+  min-height: 2.75rem;
+}
+.primary,
+.secondary {
+  padding: 0.8rem 1.1rem;
+  border: 1px solid var(--forest);
+  border-radius: var(--radius-small);
+  background: var(--forest);
+  color: var(--ivory);
+  text-decoration: none;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+.secondary {
+  background: transparent;
+  color: var(--forest);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.session-actions {
+  justify-content: space-between;
+  padding-block: 1rem;
+  border-block: 1px solid var(--border);
+}
+.session-actions p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.room-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  grid-template-areas: 'content side';
+  gap: 3rem;
+  margin-top: 2rem;
+}
+.room-content {
+  grid-area: content;
+  min-width: 0;
+}
+.add-area {
+  grid-area: side;
+  min-width: 0;
+  padding-top: 0.6rem;
+}
+.muted,
+.help,
+.room-notes,
+.section-title > span {
+  color: var(--text-muted);
+}
+.help {
+  font-size: 0.75rem;
+  margin-block: 0.5rem 0;
+}
+fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  min-height: 3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  padding: 0.7rem;
+  background: var(--surface);
+  color: var(--forest);
+}
+.add-controls {
+  display: grid;
+  gap: 0.7rem;
+}
+.fair-note {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.fair-note > p:last-child {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.views {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.views button {
+  padding: 0.5rem 0 0.8rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+.views button[aria-pressed='true'] {
+  color: var(--forest);
+  border-bottom-color: var(--forest);
+  font-weight: 600;
+}
+.views span {
+  font-size: 0.75rem;
+  margin-left: 0.4rem;
+}
+.section-title {
+  justify-content: space-between;
+  margin-block: 1.5rem 1rem;
+}
+.section-title > span {
+  font-size: 0.8rem;
+}
+.empty {
+  padding-block: 2rem;
+}
+.empty p {
+  max-width: 30rem;
+  color: var(--text-muted);
+}
+.resting-link {
+  margin-top: 1.5rem;
+}
+.refresh,
+.resting-link {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 0.1rem;
+  background: transparent;
+  color: var(--forest);
+  font-size: 0.85rem;
+}
+.problem {
+  background: #a55c3a0d;
+  border-left: 3px solid var(--clay);
+  padding: 0.9rem 1rem;
+}
+.error {
+  color: #97361f;
+  font-size: 0.85rem;
+}
+.error:empty,
+.feedback:empty {
+  display: none;
+}
+.feedback p {
+  margin-bottom: 0;
+  font-size: 0.875rem;
+}
+.room-notes {
+  margin-top: 3rem;
+  font-size: 0.75rem;
+}
+.room-notes p {
+  margin-block: 0.3rem;
+}
+.room-state {
+  padding-block: 3rem;
+}
+@media (max-width: 850px) {
+  .room-layout {
+    grid-template-columns: minmax(0, 1fr) 16rem;
+    gap: 1.75rem;
+  }
+}
+@media (max-width: 640px) {
+  .room-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'side' 'content';
+    gap: 1.5rem;
+  }
+  .add-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .fair-note {
+    display: none;
+  }
+  .add-area h2 {
+    font-size: 1.5rem;
+  }
+  .add-area > p {
+    margin-block: 0.5rem 1rem;
+  }
+  .draft {
+    align-items: stretch;
+    flex: 1;
+  }
+  .draft p {
+    flex-basis: 100%;
+  }
+  .room-notes {
+    margin-top: 2rem;
+  }
+}

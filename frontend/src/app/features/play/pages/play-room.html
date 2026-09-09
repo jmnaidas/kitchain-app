@@ -1,0 +1,215 @@
+<a class="back" routerLink="/play">← Play</a>
+@switch (state()) {
+  @case ('loading') {
+    <section class="room-state" aria-busy="true">
+      <p class="eyebrow">Play / Session room</p>
+      <h1>Getting the crew together<span>.</span></h1>
+      <p role="status">Loading your session…</p>
+    </section>
+  }
+  @case ('not-found') {
+    <section class="room-state">
+      <p class="eyebrow">A little off court</p>
+      <h1>Session not found<span>.</span></h1>
+      <p role="status">Check the code with your group, then try again.</p>
+      <a class="primary" routerLink="/play/join">Join with Code →</a>
+    </section>
+  }
+  @case ('error') {
+    <section class="room-state">
+      <h1>A brief pause<span>.</span></h1>
+      <p role="alert">
+        We couldn’t reach your session. Please check your connection and try again.
+      </p>
+      <button type="button" class="primary" (click)="reload()">Try again</button>
+    </section>
+  }
+  @case ('ready') {
+    @if (session(); as room) {
+      <app-play-session-header
+        [session]="room"
+        [shareNotice]="shareNotice()"
+        [shareFallback]="shareFallback()"
+        (copyRequested)="copy($event)"
+      />
+      <div class="session-actions">
+        @if (room.status === 'Draft') {
+          <div class="draft">
+            <p>Gather your players, then make it official.</p>
+            <button class="primary" type="button" [disabled]="blocked()" (click)="start()">
+              {{ busy() === 'start' ? 'Starting…' : 'Start Session' }}
+            </button>
+          </div>
+        } @else if (room.status === 'Ended') {
+          <p class="ended">This session has ended. The roster and queue are view-only.</p>
+        } @else {
+          <p class="active-note">Session active. Everyone’s turn, in sight.</p>
+        }
+        <button
+          class="refresh"
+          type="button"
+          [disabled]="busy() !== null || refreshing()"
+          (click)="reload()"
+        >
+          {{ refreshing() ? 'Refreshing…' : 'Refresh' }}
+        </button>
+      </div>
+      <div class="feedback" aria-live="polite" aria-atomic="true">
+        @if (busy()) {
+          <p role="status">
+            {{
+              busy() === 'add' ? 'Adding player and updating the room…' : 'Updating the session…'
+            }}
+          </p>
+        } @else if (notice()) {
+          <p role="status">{{ notice() }}</p>
+        }
+      </div>
+      @if (problem()) {
+        <p class="problem" role="alert">{{ problem() }}</p>
+      }
+      <div class="room-layout">
+        <aside class="add-area" aria-labelledby="add-title">
+          <h2 id="add-title">Add your crew<span>.</span></h2>
+          <p class="muted">One name. One place in the queue.</p>
+          <form novalidate (submit)="addPlayer($event)" [attr.aria-busy]="busy() === 'add'">
+            <fieldset [disabled]="blocked()">
+              <legend class="sr-only">Add a guest player</legend>
+              <label for="guest-name">Guest name</label>
+              <div class="add-controls">
+                <input
+                  #guestInput
+                  id="guest-name"
+                  name="displayName"
+                  [value]="guestName()"
+                  (input)="editName($event)"
+                  required
+                  maxlength="80"
+                  autocomplete="off"
+                  aria-describedby="guest-help name-error"
+                  [attr.aria-invalid]="!!nameError()"
+                /><button class="primary" type="submit">
+                  {{ busy() === 'add' ? 'Adding…' : 'Add Player' }}
+                </button>
+              </div>
+              <p class="help" id="guest-help">
+                No account needed. Use distinct names for your group.
+              </p>
+              <p class="error" id="name-error">{{ nameError() }}</p>
+            </fieldset>
+          </form>
+          <div class="fair-note">
+            <p class="eyebrow">A fair turn for everyone</p>
+            <p>New arrivals join the back. Taking a break? Rejoin at the back when you’re ready.</p>
+          </div>
+        </aside>
+        <section
+          class="room-content"
+          aria-label="Session players"
+          [attr.aria-busy]="busy() !== null || refreshing()"
+        >
+          <nav class="views" aria-label="Session views">
+            <button
+              type="button"
+              [attr.aria-pressed]="view() === 'queue'"
+              (click)="view.set('queue')"
+            >
+              Queue <span>{{ room.waitingQueue.length }}</span></button
+            ><button
+              type="button"
+              [attr.aria-pressed]="view() === 'players'"
+              (click)="view.set('players')"
+            >
+              Players <span>{{ room.players.length }}</span>
+            </button>
+          </nav>
+          @if (!room.players.length) {
+            <div class="empty">
+              <p class="eyebrow">Room for a good game</p>
+              <h2>Your court crew starts here.</h2>
+              <p>Add the first player and share your code with the group.</p>
+              @if (room.status !== 'Ended') {
+                <button type="button" class="secondary" [disabled]="blocked()" (click)="focusAdd()">
+                  Add the first player →
+                </button>
+              }
+            </div>
+          } @else if (view() === 'queue') {
+            @if (nextUp().length) {
+              <section class="next-up" aria-labelledby="next-title">
+                <div class="section-title">
+                  <h2 id="next-title">
+                    {{ room.status === 'Ended' ? 'First in queue' : 'Next up' }}
+                  </h2>
+                  <span>First in line</span>
+                </div>
+                <app-play-player-list
+                  [players]="nextUp()"
+                  [positions]="positions()"
+                  [featured]="true"
+                  [disabled]="blocked()"
+                  (stateChange)="changePlayer($event)"
+                />
+                @if (nextUp().length < 4 && room.status !== 'Ended') {
+                  <p class="muted">
+                    {{ 4 - nextUp().length }} more
+                    {{ nextUp().length === 3 ? 'player makes' : 'players make' }} a group of four.
+                  </p>
+                }
+              </section>
+              @if (waiting().length) {
+                <section aria-labelledby="waiting-title">
+                  <div class="section-title">
+                    <h2 id="waiting-title">Waiting</h2>
+                    <span>{{ waiting().length }} in line</span>
+                  </div>
+                  <app-play-player-list
+                    [players]="waiting()"
+                    [positions]="positions()"
+                    [disabled]="blocked()"
+                    (stateChange)="changePlayer($event)"
+                  />
+                </section>
+              }
+            } @else {
+              <div class="empty">
+                <h2>A moment between games.</h2>
+                <p>
+                  No one is waiting right now. Check Players to see who’s playing or taking a break.
+                </p>
+              </div>
+            }
+            @if (restingCount()) {
+              <button class="resting-link" type="button" (click)="view.set('players')">
+                {{ restingCount() }} taking a break · View players →
+              </button>
+            }
+          } @else {
+            <div class="section-title">
+              <h2>The whole crew</h2>
+              <span
+                >{{ room.players.length }}
+                {{ room.players.length === 1 ? 'player' : 'players' }}</span
+              >
+            </div>
+            <app-play-player-list
+              [players]="room.players"
+              [positions]="positions()"
+              [disabled]="blocked()"
+              (stateChange)="changePlayer($event)"
+            />
+          }
+        </section>
+      </div>
+      <div class="room-notes">
+        <p>
+          Changes from other phones appear when you refresh.
+          @if (refreshedAt(); as time) {
+            Last loaded {{ time | date: 'shortTime' }}.
+          }
+        </p>
+        <p>Session controls are currently open in this preview.</p>
+      </div>
+    }
+  }
+}

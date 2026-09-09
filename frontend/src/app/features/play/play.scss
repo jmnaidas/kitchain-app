@@ -1,0 +1,162 @@
+:host {
+  display: block;
+}
+.play-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+  padding-block: clamp(3rem, 7vw, 6rem);
+}
+h1 span {
+  color: var(--clay);
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 2rem;
+}
+.primary {
+  display: inline-flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.4rem;
+  background: var(--forest);
+  color: var(--ivory);
+  border-radius: var(--radius-small);
+  text-decoration: none;
+}
+.secondary {
+  padding-block: 0.75rem;
+  text-underline-offset: 0.3em;
+}
+.quiet {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-top: 1.5rem;
+}
+.play-art {
+  position: relative;
+  background: #dce2cb;
+  aspect-ratio: 4 / 5;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+.art-label,
+.art-footer {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+}
+.court-mark {
+  position: absolute;
+  inset: 19% 15% 24%;
+  border: 2px solid var(--forest);
+  transform: rotate(-12deg);
+  opacity: 0.65;
+}
+.court-mark::before,
+.court-mark::after,
+.court-mark i {
+  position: absolute;
+  content: '';
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--forest);
+}
+.court-mark::before {
+  top: 30%;
+}
+.court-mark::after {
+  bottom: 30%;
+}
+.court-mark i {
+  top: 50%;
+}
+.court-mark i::after {
+  content: '';
+  position: absolute;
+  height: 22rem;
+  left: 50%;
+  top: -11rem;
+  border-left: 1px solid var(--forest);
+  opacity: 0.3;
+}
+.turns {
+  position: absolute;
+  display: flex;
+  gap: 0.65rem;
+  bottom: 19%;
+  left: 9%;
+  transform: rotate(-12deg);
+}
+.turns span {
+  display: grid;
+  place-items: center;
+  width: clamp(2.4rem, 4.5vw, 4rem);
+  aspect-ratio: 1;
+  background: var(--forest);
+  color: var(--ivory);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+}
+.turns span:last-child {
+  background: var(--clay);
+}
+.art-footer {
+  position: absolute;
+  inset-inline: 1.5rem;
+  bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.play-principles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  padding-block: 2rem 3rem;
+  border-top: 1px solid var(--border);
+}
+.play-principles span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+h2 {
+  font: 400 1.55rem var(--font-display);
+  margin-bottom: 0.75rem;
+}
+.play-principles p {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+@media (max-width: 800px) {
+  .play-hero {
+    gap: 1.5rem;
+  }
+}
+@media (max-width: 640px) {
+  .play-hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .play-art {
+    aspect-ratio: 2.3;
+  }
+  .court-mark {
+    inset: -35% 30%;
+  }
+  .turns {
+    bottom: 26%;
+    left: 27%;
+  }
+  .play-principles {
+    grid-template-columns: 1fr;
+    gap: 1.8rem;
+  }
+}

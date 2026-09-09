@@ -43,6 +43,21 @@ export const routes: Routes = [
     loadComponent: () => import('./features/play/play').then((m) => m.Play),
   },
   {
+    path: 'play/new',
+    title: 'Start a Session | Kitchain',
+    loadComponent: () => import('./features/play/pages/play-create').then((m) => m.PlayCreate),
+  },
+  {
+    path: 'play/join',
+    title: 'Join a Session | Kitchain',
+    loadComponent: () => import('./features/play/pages/play-join').then((m) => m.PlayJoin),
+  },
+  {
+    path: 'play/s/:code',
+    title: 'Session Room | Kitchain',
+    loadComponent: () => import('./features/play/pages/play-room').then((m) => m.PlayRoom),
+  },
+  {
     path: 'gear',
     title: 'Gear | Kitchain',
     loadComponent: () => import('./features/gear/gear').then((m) => m.Gear),
