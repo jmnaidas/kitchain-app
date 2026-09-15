@@ -10,6 +10,7 @@ label {
   font-size: 0.85rem;
 }
 input {
+  box-sizing: border-box;
   display: block;
   width: 100%;
   min-width: 0;
@@ -40,7 +41,7 @@ p {
   font-size: 0.85rem;
 }
 .roster-action {
-  min-height: 2rem;
+  min-height: 2.75rem;
   min-width: 2.75rem;
   padding: 0.2rem 0.35rem;
   margin-right: 0.25rem;

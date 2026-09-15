@@ -1,5 +1,5 @@
 @if (action() === 'edit') {
-  <form (submit)="save($event)" novalidate [attr.aria-label]="'Edit ' + player().displayName">
+  <form (submit)="save($event)" novalidate [attr.aria-label]="'Rename ' + player().displayName">
     <label
       >Player name<input
         name="displayName"
@@ -17,9 +17,15 @@
   </form>
 } @else if (action() === 'remove') {
   <div role="group" [attr.aria-label]="'Remove ' + player().displayName + '?'">
-    <p>Remove {{ player().displayName }}?</p>
+    <p>Remove {{ player().displayName }} from this session?</p>
+    <p>Their completed match history will remain available.</p>
+    @if (!allowRemove()) {
+      <p>This player is now on a current court. Confirm the next game before removing them.</p>
+    }
     <button type="button" (click)="action.set(null)">Cancel</button>
-    <button type="button" [disabled]="disabled()" (click)="remove()">Remove</button>
+    <button type="button" [disabled]="disabled() || !allowRemove()" (click)="remove()">
+      Remove player
+    </button>
   </div>
 } @else {
   <button
@@ -27,17 +33,19 @@
     [disabled]="disabled()"
     class="roster-action"
     (click)="edit()"
-    [attr.aria-label]="'Edit ' + player().displayName"
+    [attr.aria-label]="'Rename ' + player().displayName"
   >
-    Edit
+    Rename
   </button>
-  <button
-    type="button"
-    [disabled]="disabled()"
-    class="roster-action"
-    (click)="action.set('remove')"
-    [attr.aria-label]="'Remove ' + player().displayName"
-  >
-    Remove
-  </button>
+  @if (allowRemove()) {
+    <button
+      type="button"
+      [disabled]="disabled()"
+      class="roster-action"
+      (click)="action.set('remove')"
+      [attr.aria-label]="'Remove ' + player().displayName"
+    >
+      Remove
+    </button>
+  }
 }

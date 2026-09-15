@@ -29,8 +29,10 @@ public sealed class PlaySessionFlowTests
         Assert.Equal(players.Where(p => p != players[1]).Select(p => p.Id), Queue(session));
         Assert.Equal(new long?[] { 1, 3, 4, 5, 6, 7, 8 }, session.WaitingQueue.Select(p => p.QueueOrder));
         session.Start(Now);
-        Assert.Throws<PlayConflictException>(() => session.RenameGuest(players[0].Id, "Other", Now));
-        Assert.Throws<PlayConflictException>(() => session.RemoveGuest(players[0].Id, Now));
+        session.RenameGuest(players[0].Id, "Other", Now);
+        Assert.Equal("Other", players[0].DisplayName);
+        var playing = session.Players.First(p => p.State == PlayPlayerState.Playing);
+        Assert.Throws<PlayConflictException>(() => session.RemoveGuest(playing.Id, Now));
     }
 
     [Fact]

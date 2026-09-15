@@ -12,8 +12,8 @@ const conflicts: Record<string, string> = {
     'The session has started. Its settings are now read-only.',
   'Maximum players cannot be lower than the current roster size.':
     'The player limit must include everyone currently on the roster.',
-  'Only Draft session players can be edited or removed.':
-    'The session has started. Draft roster edits are no longer available.',
+  'A player on a current court cannot be removed. Confirm the next game first.':
+    'This player is still on a current court. Confirm the next game before removing them.',
   'Live scoring is not enabled for this session.':
     'This is a Queue Only session. Players keep score themselves.',
   'This court is no longer awaiting a next game.':

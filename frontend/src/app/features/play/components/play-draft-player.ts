@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { PlayPlayer } from '../data-access/play.models';
 
 @Component({
@@ -10,11 +18,19 @@ import { PlayPlayer } from '../data-access/play.models';
 export class PlayDraftPlayer {
   readonly player = input.required<PlayPlayer>();
   readonly disabled = input(false);
+  readonly allowRemove = input(true);
   readonly renamePlayer = output<{ playerId: string; displayName: string }>();
   readonly removePlayer = output<string>();
   protected readonly action = signal<'edit' | 'remove' | null>(null);
   protected readonly name = signal('');
   protected readonly error = signal('');
+  private readonly currentName = computed(() => this.player().displayName);
+  constructor() {
+    effect(() => {
+      this.currentName();
+      this.action.set(null);
+    });
+  }
   protected edit() {
     this.name.set(this.player().displayName);
     this.error.set('');
@@ -22,6 +38,7 @@ export class PlayDraftPlayer {
   }
   protected inputName(event: Event) {
     this.name.set((event.target as HTMLInputElement).value);
+    this.error.set('');
   }
   protected save(event: Event) {
     event.preventDefault();
@@ -31,9 +48,13 @@ export class PlayDraftPlayer {
       this.error.set('Enter a name of 1–80 characters.');
       return;
     }
+    if (name === this.player().displayName) {
+      this.action.set(null);
+      return;
+    }
     this.renamePlayer.emit({ playerId: this.player().id, displayName: name });
   }
   protected remove() {
-    if (!this.disabled()) this.removePlayer.emit(this.player().id);
+    if (!this.disabled() && this.allowRemove()) this.removePlayer.emit(this.player().id);
   }
 }

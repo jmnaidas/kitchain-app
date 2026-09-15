@@ -20,7 +20,7 @@ public sealed class PlayMatch
         Status = PlayMatchStatus.Active;
         StartedAt = now.ToUniversalTime();
         for (var i = 0; i < 4; i++)
-            _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1));
+            _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1, players[i].DisplayName));
     }
 
     public Guid Id { get; private set; }
@@ -113,16 +113,20 @@ public sealed class PlayMatch
 public sealed class PlayMatchPlayer
 {
     private PlayMatchPlayer() { }
-    internal PlayMatchPlayer(Guid matchId, Guid playerId, int position)
+    internal PlayMatchPlayer(Guid matchId, Guid playerId, int position, string displayName)
     {
         MatchId = matchId;
         PlayerId = playerId;
         Position = position;
         Team = position <= 2 ? PlayTeam.A : PlayTeam.B;
+        DisplayName = displayName;
     }
 
     public Guid MatchId { get; private set; }
     public Guid PlayerId { get; private set; }
     public int Position { get; private set; }
     public PlayTeam Team { get; private set; }
+    public string DisplayName { get; private set; } = "";
+
+    internal void Rename(string displayName) => DisplayName = displayName;
 }

@@ -10,32 +10,43 @@
         <strong>{{ player.displayName }}</strong>
         <div class="player-meta">
           <span class="state">
-            {{ completedPlayers()[player.id] ? 'Game complete' : player.state }}
+            {{
+              player.state === 'Playing'
+                ? 'Playing'
+                : player.state === 'Resting'
+                  ? 'Sitting Out'
+                  : nextUp().has(player.id)
+                    ? 'Next Up'
+                    : 'Waiting'
+            }}
             @if (player.state === 'Playing' && courts()[player.id]) {
               · Court {{ courts()[player.id] }}
             }
+            @if (completedPlayers()[player.id]) {
+              · Game complete; awaiting next lineup
+            }
           </span>
-          @if (draft()) {
+          @if (managed() && !readOnly()) {
             <app-play-draft-player
               [player]="player"
               [disabled]="disabled()"
+              [allowRemove]="player.state !== 'Playing'"
               (renamePlayer)="renamePlayer.emit($event)"
               (removePlayer)="removePlayer.emit($event)"
             />
           }
         </div>
       </div>
-      @if (!draft() && player.state !== 'Playing') {
+      @if (managed() && !readOnly() && !draft() && player.state !== 'Playing') {
         <button
           type="button"
           [disabled]="disabled()"
           (click)="change(player)"
           [attr.aria-label]="
-            (player.state === 'Waiting' ? 'Take a break for ' : 'Rejoin queue for ') +
-            player.displayName
+            (player.state === 'Waiting' ? 'Sit out ' : 'Rejoin ') + player.displayName
           "
         >
-          {{ player.state === 'Waiting' ? 'Take a Break' : 'Rejoin Queue' }}
+          {{ player.state === 'Waiting' ? 'Sit out' : 'Rejoin rotation' }}
         </button>
       }
     </li>

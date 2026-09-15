@@ -33,6 +33,83 @@ public sealed class PlayRallyApiTests(PostgresCourtFixture fixture) : IClassFixt
     }
 
     [PostgresFact]
+    public async Task Roster_history_and_removed_participant_insights_survive_database_reload()
+    {
+        var session = await Start(PlaySessionMode.QueueOnly);
+        var url = $"{Route}/{session.JoinCode}";
+        var match = session.CurrentMatches.Single();
+        var original = match.Players[0];
+        using var finished = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/finish", new { winner = "A" });
+        Assert.Equal(HttpStatusCode.OK, finished.StatusCode);
+        using var rename = await fixture.Client.PatchAsJsonAsync($"{url}/players/{original.PlayerId}", new { displayName = "New current name" });
+        Assert.Equal(HttpStatusCode.OK, rename.StatusCode);
+        var held = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        Assert.Equal(original.DisplayName, held.MatchHistory.Single().Players.Single(p => p.PlayerId == original.PlayerId).DisplayName);
+        using var next = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/next",
+            new { playerIds = held.CurrentMatches.Single().NextLineup.Select(p => p.PlayerId), overrideLineup = false });
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        using var removed = await fixture.Client.DeleteAsync($"{url}/players/{original.PlayerId}");
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        Assert.Equal(7, saved.Players.Count);
+        Assert.Equal(7, saved.Insights.TotalPlayers);
+        Assert.DoesNotContain(saved.Players, p => p.Id == original.PlayerId);
+        Assert.True(saved.Insights.Players.Single(p => p.PlayerId == original.PlayerId).IsRemoved);
+        Assert.Equal(original.DisplayName, saved.MatchHistory.Single().Players.Single(p => p.PlayerId == original.PlayerId).DisplayName);
+        using var repeat = await fixture.Client.DeleteAsync($"{url}/players/{original.PlayerId}");
+        Assert.Equal(HttpStatusCode.NotFound, repeat.StatusCode);
+        using var rejoin = await fixture.Client.PostAsync($"{url}/players/{original.PlayerId}/rejoin", null);
+        Assert.Equal(HttpStatusCode.NotFound, rejoin.StatusCode);
+        using var sameName = await fixture.Client.PostAsJsonAsync($"{url}/players", new { displayName = "New current name" });
+        Assert.Equal(HttpStatusCode.Created, sameName.StatusCode);
+    }
+
+    [PostgresFact]
+    public async Task Removal_racing_next_confirmation_has_one_safe_serialized_outcome()
+    {
+        var session = await Start(PlaySessionMode.QueueOnly);
+        var url = $"{Route}/{session.JoinCode}";
+        var match = session.CurrentMatches.Single();
+        using var finished = await fixture.Client.PostAsync($"{url}/matches/{match.Id}/finish", null);
+        Assert.Equal(HttpStatusCode.OK, finished.StatusCode);
+        var held = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        var lineup = held.CurrentMatches.Single().NextLineup.Select(p => p.PlayerId).ToArray();
+        var responses = await Task.WhenAll(
+            fixture.Client.DeleteAsync($"{url}/players/{lineup[0]}"),
+            fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/next", new { playerIds = lineup, overrideLineup = false }));
+        try
+        {
+            Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+            Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        }
+        finally { foreach (var response in responses) response.Dispose(); }
+        var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        Assert.Single(saved.MatchHistory);
+        var current = saved.CurrentMatches.Single();
+        Assert.Equal(4, current.Players.Select(p => p.PlayerId).Distinct().Count());
+        Assert.All(current.Players, p => Assert.Contains(saved.Players, roster => roster.Id == p.PlayerId && roster.State == PlayPlayerState.Playing));
+        Assert.All(saved.Queue.NextUp, p => Assert.Equal(PlayPlayerState.Waiting, p.State));
+    }
+
+    [PostgresFact]
+    public async Task Sitting_out_racing_completion_preserves_both_updates_and_canonical_preview()
+    {
+        var session = await Start(PlaySessionMode.QueueOnly);
+        var url = $"{Route}/{session.JoinCode}";
+        var player = session.WaitingQueue[0];
+        var responses = await Task.WhenAll(
+            fixture.Client.PostAsync($"{url}/players/{player.Id}/rest", null),
+            fixture.Client.PostAsync($"{url}/matches/{session.CurrentMatches[0].Id}/finish", null));
+        try { Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode)); }
+        finally { foreach (var response in responses) response.Dispose(); }
+        var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        Assert.Equal(PlayPlayerState.Resting, saved.Players.Single(p => p.Id == player.Id).State);
+        Assert.DoesNotContain(saved.Queue.NextUp, p => p.Id == player.Id);
+        Assert.DoesNotContain(saved.CurrentMatches[0].NextLineup, p => p.PlayerId == player.Id);
+        Assert.Single(saved.MatchHistory);
+    }
+
+    [PostgresFact]
     public async Task Queue_only_finish_result_round_trips_through_the_existing_endpoint()
     {
         foreach (var winner in new PlayTeam?[] { PlayTeam.A, PlayTeam.B, null })

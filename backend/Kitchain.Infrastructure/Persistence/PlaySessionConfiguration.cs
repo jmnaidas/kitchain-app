@@ -57,7 +57,7 @@ internal sealed class PlaySessionPlayerConfiguration : IEntityTypeConfiguration<
         player.Property(p => p.NormalizedDisplayName).HasMaxLength(80).IsRequired();
         player.Property(p => p.IdentityType).HasConversion<string>().HasMaxLength(20);
         player.Property(p => p.State).HasConversion<string>().HasMaxLength(20);
-        player.HasIndex(p => new { p.SessionId, p.NormalizedDisplayName }).IsUnique();
+        player.HasIndex(p => new { p.SessionId, p.NormalizedDisplayName }).IsUnique().HasFilter("NOT \"IsRemoved\"");
         player.HasIndex(p => new { p.SessionId, p.QueueOrder }).IsUnique().HasFilter("\"QueueOrder\" IS NOT NULL");
         player.HasIndex(p => new { p.SessionId, p.State, p.QueueOrder });
     }

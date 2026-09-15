@@ -65,6 +65,8 @@ public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayNam
     PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder);
 
 public sealed record PlayMatchPlayerDetail(Guid PlayerId, string DisplayName, PlayTeam Team, int Position);
+public sealed record PlayQueueDetail(IReadOnlyList<PlayPlayerDetail> NextUp,
+    IReadOnlyList<PlayPlayerDetail> Waiting, int NeededPlayers, int HeldPlayers, int? CourtNumber);
 public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus Status, DateTimeOffset StartedAt,
     IReadOnlyList<PlayMatchPlayerDetail> Players, int TeamAScore, int TeamBScore, PlayTeam ServingTeam, int CurrentServerNumber,
     DateTimeOffset? CompletedAt, PlayTeam? Winner, IReadOnlyList<PlayMatchPlayerDetail> NextLineup,
@@ -76,7 +78,7 @@ public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, Da
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<PlayPlayerDetail> Players,
     IReadOnlyList<PlayPlayerDetail> WaitingQueue, IReadOnlyList<PlayMatchDetail> ActiveMatches,
     PlaySessionMode Mode, IReadOnlyList<PlayMatchDetail> CurrentMatches, DateOnly EndDate,
-    IReadOnlyList<PlayMatchSummary> MatchHistory, PlayInsights Insights);
+    IReadOnlyList<PlayMatchSummary> MatchHistory, PlayInsights Insights, PlayQueueDetail Queue);
 
 public interface IPlayJoinCodeGenerator
 {
@@ -190,7 +192,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     {
         PlayMatchPlayerDetail[] Participants(PlayMatch match) => match.Players.OrderBy(p => p.Position)
             .Select(p => new PlayMatchPlayerDetail(p.PlayerId,
-                session.Players.Single(player => player.Id == p.PlayerId).DisplayName, p.Team, p.Position)).ToArray();
+                p.DisplayName, p.Team, p.Position)).ToArray();
         PlayRallyEventDetail[] Rallies(PlayMatch match) => match.Rallies.OrderBy(r => r.Sequence)
             .Select(r => new PlayRallyEventDetail(r.Id, r.MatchId, r.Sequence, r.Winner, r.PointAwarded,
                 r.CallOut, r.TeamAScore, r.TeamBScore, r.ServingTeam, r.CurrentServerNumber, r.CreatedAt)).ToArray();
@@ -213,11 +215,14 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
                     .OrderBy(g => g.Key).Select(g => new PlayCallOutCount(g.Key, g.Count())).ToArray() : [],
                 scoring ? Rallies(m) : [])).ToArray();
         var current = session.Matches.Where(m => m.IsCurrent).OrderBy(m => m.CourtNumber).Select(Match).ToArray();
+        var preview = session.RotationPreview();
         return new(session.Id, session.JoinCode, session.Name, session.SessionDate, session.StartTime, session.EndTime,
             session.NumberOfCourts, session.MaximumPlayers, session.Status, session.RotationMode, session.ScoringMode,
             session.GameTo, session.WinBy, session.CreatedAt, session.UpdatedAt,
-            session.Players.OrderBy(p => p.JoinedAt).ThenBy(p => p.Id).Select(Player).ToArray(),
+            session.Players.Where(p => !p.IsRemoved).OrderBy(p => p.JoinedAt).ThenBy(p => p.Id).Select(Player).ToArray(),
             session.WaitingQueue.Select(Player).ToArray(), current.Where(m => m.Status == PlayMatchStatus.Active).ToArray(),
-            session.Mode, current, session.EndDate, history, PlayInsights.From(session, history));
+            session.Mode, current, session.EndDate, history, PlayInsights.From(session, history),
+            new(preview.Next.Select(Player).ToArray(), preview.Waiting.Select(Player).ToArray(),
+                preview.Needed, preview.Held, preview.Court));
     }
 }

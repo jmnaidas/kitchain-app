@@ -65,10 +65,10 @@ public sealed class PlaySession
     {
         EnsureOpen(now);
         // Resting participants retain their place in the session's capacity, not in its queue.
-        if (MaximumPlayers.HasValue && _players.Count >= MaximumPlayers.Value)
+        if (MaximumPlayers.HasValue && _players.Count(p => !p.IsRemoved) >= MaximumPlayers.Value)
             throw new PlayConflictException("This session has reached its player limit.");
         var player = new PlaySessionPlayer(Guid.NewGuid(), Id, displayName, now, NextTicket());
-        if (_players.Any(p => p.NormalizedDisplayName == player.NormalizedDisplayName))
+        if (_players.Any(p => !p.IsRemoved && p.NormalizedDisplayName == player.NormalizedDisplayName))
             throw new PlayConflictException("A player with this name is already in the session. Use a distinct name.");
         player.EnterScheduling(Status == PlaySessionStatus.Active ? EntryBaseline() : 0);
         _players.Add(player);
@@ -88,26 +88,26 @@ public sealed class PlaySession
 
     public void RenameGuest(Guid playerId, string displayName, DateTimeOffset now)
     {
-        EnsureDraft(now);
+        EnsureOpen(now);
         var player = FindPlayer(playerId);
         var normalized = PlaySessionPlayer.NormalizeName(displayName?.Trim() ?? "");
-        if (_players.Any(p => p.Id != playerId && p.NormalizedDisplayName == normalized))
+        if (_players.Any(p => !p.IsRemoved && p.Id != playerId && p.NormalizedDisplayName == normalized))
             throw new PlayConflictException("A player with this name is already in the session. Use a distinct name.");
         player.Rename(displayName!, now);
+        // Active games follow roster names; completed participant snapshots never change.
+        foreach (var slot in _matches.Where(m => m.Status == PlayMatchStatus.Active)
+            .SelectMany(m => m.Players).Where(p => p.PlayerId == playerId))
+            slot.Rename(player.DisplayName);
         UpdatedAt = now.ToUniversalTime();
     }
 
     public void RemoveGuest(Guid playerId, DateTimeOffset now)
     {
-        EnsureDraft(now);
-        _players.Remove(FindPlayer(playerId));
-        UpdatedAt = now.ToUniversalTime();
-    }
-
-    private void EnsureDraft(DateTimeOffset now)
-    {
         EnsureOpen(now);
-        if (Status != PlaySessionStatus.Draft) throw new PlayConflictException("Only Draft session players can be edited or removed.");
+        var player = FindPlayer(playerId);
+        player.Remove(now);
+        if (!_matches.Any(m => m.Players.Any(p => p.PlayerId == playerId))) _players.Remove(player);
+        UpdatedAt = now.ToUniversalTime();
     }
 
     public void Rejoin(Guid playerId, DateTimeOffset now)
@@ -242,6 +242,25 @@ public sealed class PlaySession
     private IReadOnlyList<PlaySessionPlayer> Recommend(IReadOnlyList<PlaySessionPlayer> eligible, Guid seed) =>
         PlayTeamPairing.Recommend(Id, PlayFairRotation.Select(eligible, _matches, seed), _matches, seed);
 
+    // A preview only: no opportunity counters or tickets are changed by a read.
+    public (IReadOnlyList<PlaySessionPlayer> Next, IReadOnlyList<PlaySessionPlayer> Waiting,
+        int Needed, int Held, int? Court) RotationPreview()
+    {
+        var completed = Status == PlaySessionStatus.Active
+            ? _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Completed)
+                .OrderBy(m => m.CompletedAt).ThenBy(m => m.CourtNumber).FirstOrDefault() : null;
+        var eligible = completed is null ? WaitingQueue : EligibleNextPlayers(completed.Id);
+        IReadOnlyList<PlaySessionPlayer> selected = Status != PlaySessionStatus.Ended && eligible.Count >= 4
+            ? Recommend(eligible, completed?.Id ?? Id) : [];
+        var next = selected.Where(p => p.State == PlayPlayerState.Waiting).ToArray();
+        var ids = next.Select(p => p.Id).ToHashSet();
+        var waiting = WaitingQueue.Where(p => !ids.Contains(p.Id))
+            .OrderBy(p => p.AdjustedGamesStarted).ThenByDescending(p => p.MissedOpportunities / 2)
+            .ThenBy(p => p.WaitingSince).ThenBy(p => p.QueueOrder).ThenBy(p => p.Id).ToArray();
+        return (next, waiting, Math.Max(0, 4 - eligible.Count),
+            selected.Count(p => p.State == PlayPlayerState.Playing), completed?.CourtNumber);
+    }
+
     private void FillFreeCourts(DateTimeOffset now)
     {
         if (Status != PlaySessionStatus.Active) return;
@@ -272,7 +291,7 @@ public sealed class PlaySession
 
     private long EntryBaseline()
     {
-        var values = _players.Where(p => p.State != PlayPlayerState.Resting)
+        var values = _players.Where(p => !p.IsRemoved && p.State != PlayPlayerState.Resting)
             .Select(p => p.AdjustedGamesStarted).Order().ToArray();
         return values.Length == 0 ? 0 : values[(values.Length - 1) / 2];
     }
@@ -303,7 +322,7 @@ public sealed class PlaySession
             throw new ArgumentException("End date and time must follow start date and time.", nameof(endTime));
         if (numberOfCourts <= 0) throw new ArgumentException("Number of courts must be positive.", nameof(numberOfCourts));
         if (maximumPlayers is <= 0) throw new ArgumentException("Maximum players must be positive.", nameof(maximumPlayers));
-        if (maximumPlayers.HasValue && maximumPlayers.Value < _players.Count)
+        if (maximumPlayers.HasValue && maximumPlayers.Value < _players.Count(p => !p.IsRemoved))
             throw new PlayConflictException("Maximum players cannot be lower than the current roster size.");
         if (!Enum.IsDefined(mode)) throw new ArgumentException("Choose QueueOnly or LiveScoring.", nameof(mode));
         Name = normalized;
@@ -324,7 +343,7 @@ public sealed class PlaySession
         UpdatedAt = now.ToUniversalTime();
     }
 
-    private PlaySessionPlayer FindPlayer(Guid id) => _players.SingleOrDefault(p => p.Id == id)
+    private PlaySessionPlayer FindPlayer(Guid id) => _players.SingleOrDefault(p => p.Id == id && !p.IsRemoved)
         ?? throw new KeyNotFoundException("Player not found in this session.");
 
     private long NextTicket() => NextQueueOrder < long.MaxValue ? NextQueueOrder + 1

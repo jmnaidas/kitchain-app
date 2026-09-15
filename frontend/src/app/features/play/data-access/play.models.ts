@@ -73,6 +73,13 @@ export interface PlayPlayer {
 }
 
 export interface PlaySession {
+  queue: {
+    nextUp: PlayPlayer[];
+    waiting: PlayPlayer[];
+    neededPlayers: number;
+    heldPlayers: number;
+    courtNumber: number | null;
+  };
   insights: PlayInsights;
   matchHistory: PlayMatchSummary[];
   mode: PlaySessionMode;
@@ -113,6 +120,7 @@ export interface PlayInsights {
     losses: number;
     distinctTeammates: number;
     distinctOpponents: number;
+    isRemoved?: boolean;
   }[];
 }
 

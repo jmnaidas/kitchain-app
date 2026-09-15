@@ -37,6 +37,7 @@ internal sealed class PlayMatchPlayerConfiguration : IEntityTypeConfiguration<Pl
         player.ToTable("PlayMatchPlayers", table =>
             table.HasCheckConstraint("CK_PlayMatchPlayers_TeamPosition", "(\"Position\" IN (1, 2) AND \"Team\" = 'A') OR (\"Position\" IN (3, 4) AND \"Team\" = 'B')"));
         player.HasKey(p => new { p.MatchId, p.PlayerId });
+        player.Property(p => p.DisplayName).HasMaxLength(80).IsRequired();
         player.Property(p => p.Team).HasConversion<string>().HasMaxLength(1);
         player.HasIndex(p => new { p.MatchId, p.Position }).IsUnique();
         player.HasOne<PlaySessionPlayer>().WithMany().HasForeignKey(p => p.PlayerId).OnDelete(DeleteBehavior.Restrict);

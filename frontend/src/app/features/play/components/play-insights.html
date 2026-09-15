@@ -48,7 +48,12 @@
         <tbody>
           @for (player of insights().players; track player.playerId) {
             <tr>
-              <th scope="row">{{ player.displayName }}</th>
+              <th scope="row">
+                {{ player.displayName }}
+                @if (player.isRemoved) {
+                  <span class="note"> · Removed from roster</span>
+                }
+              </th>
               <td>{{ player.gamesPlayed }}</td>
               <td>{{ player.wins }}</td>
               <td>{{ player.losses }}</td>

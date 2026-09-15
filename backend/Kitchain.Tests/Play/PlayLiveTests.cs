@@ -78,7 +78,8 @@ public sealed class PlayLiveTests
         await controller.StartNextGame("ABCDEF", match.Id, request, default);
         Assert.Equal(5, notifier.Codes.Count);
         await controller.StartNextGame("ABCDEF", match.Id, request, default);
-        await controller.RenameGuest("ABCDEF", store.Session.Players.First().Id, new AddPlayGuest("Invalid"), default);
+        await controller.RenameGuest("ABCDEF", store.Session.Players.First().Id,
+            new AddPlayGuest(store.Session.Players.Last().DisplayName), default);
         Assert.Equal(5, notifier.Codes.Count);
         await controller.End("ABCDEF", default);
         Assert.Equal(6, notifier.Codes.Count);
@@ -103,6 +104,24 @@ public sealed class PlayLiveTests
         await controller.Start("ABCDEF", default);
         await controller.Edit("ABCDEF", input, default);
         Assert.Equal(2, notifier.Codes.Count);
+    }
+
+    [Fact]
+    public async Task Active_roster_management_uses_the_existing_post_save_notification()
+    {
+        var store = new Store();
+        store.Session.Start(store.Session.UpdatedAt);
+        var player = store.Session.WaitingQueue.Single();
+        var notifier = new RecordingNotifier(store);
+        var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
+        var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
+        await controller.Rest("ABCDEF", player.Id, default);
+        await controller.Rejoin("ABCDEF", player.Id, default);
+        await controller.RenameGuest("ABCDEF", player.Id, new AddPlayGuest("Active rename"), default);
+        await controller.RemoveGuest("ABCDEF", player.Id, default);
+        Assert.Equal(4, notifier.Codes.Count);
+        await controller.RemoveGuest("ABCDEF", player.Id, default);
+        Assert.Equal(4, notifier.Codes.Count);
     }
 
     private sealed class Store : IPlaySessionStore

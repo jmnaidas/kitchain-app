@@ -19,6 +19,9 @@ export class PlayPlayerList {
   readonly positions = input.required<Readonly<Record<string, number>>>();
   readonly courts = input<Readonly<Record<string, number>>>({});
   readonly featured = input(false);
+  readonly nextUp = input<ReadonlySet<string>>(new Set());
+  readonly managed = input(true);
+  readonly readOnly = input(false);
   readonly disabled = input(false);
   readonly stateChange = output<PlayerStateChange>();
   readonly draft = input(false);
@@ -27,7 +30,15 @@ export class PlayPlayerList {
   readonly removePlayer = output<string>();
 
   protected change(player: PlayPlayer) {
-    if (this.disabled() || this.draft() || player.state === 'Playing') return;
+    if (
+      this.disabled() ||
+      this.readOnly() ||
+      !this.managed() ||
+      this.draft() ||
+      player.state === 'Playing'
+    ) {
+      return;
+    }
     this.stateChange.emit({ player, action: player.state === 'Waiting' ? 'rest' : 'rejoin' });
   }
 }

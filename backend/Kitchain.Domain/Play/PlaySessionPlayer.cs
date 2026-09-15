@@ -31,6 +31,7 @@ public sealed class PlaySessionPlayer
     public string NormalizedDisplayName { get; private set; } = "";
     public PlayPlayerIdentityType IdentityType { get; private set; }
     public PlayPlayerState State { get; private set; }
+    public bool IsRemoved { get; private set; }
     public DateTimeOffset JoinedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public long? QueueOrder { get; private set; }
@@ -67,6 +68,17 @@ public sealed class PlaySessionPlayer
             throw new ArgumentException("Supply a player name of 1–80 characters.", nameof(displayName));
         DisplayName = name;
         NormalizedDisplayName = NormalizeName(name);
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    internal void Remove(DateTimeOffset now)
+    {
+        if (State == PlayPlayerState.Playing)
+            throw new PlayConflictException("A player on a current court cannot be removed. Confirm the next game first.");
+        IsRemoved = true;
+        State = PlayPlayerState.Resting;
+        QueueOrder = null;
+        WaitingSince = null;
         UpdatedAt = now.ToUniversalTime();
     }
 

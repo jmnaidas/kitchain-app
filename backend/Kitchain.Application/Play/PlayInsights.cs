@@ -3,7 +3,7 @@ using Kitchain.Domain.Play;
 namespace Kitchain.Application.Play;
 
 public sealed record PlayPlayerInsights(Guid PlayerId, string DisplayName, int GamesPlayed, int Wins,
-    int Losses, int DistinctTeammates, int DistinctOpponents);
+    int Losses, int DistinctTeammates, int DistinctOpponents, bool IsRemoved = false);
 
 public sealed record PlayInsights(int TotalPlayers, int NumberOfCourts, int CompletedGames,
     int PlayerAppearances, int? RecordedRallies, int? TaggedRallies, IReadOnlyList<PlayPlayerInsights> Players)
@@ -21,11 +21,11 @@ public sealed record PlayInsights(int TotalPlayers, int NumberOfCourts, int Comp
                 appearances.SelectMany(a => a.Match.Players.Where(p => p.Team == a.Team && p.PlayerId != player.Id))
                     .Select(p => p.PlayerId).Distinct().Count(),
                 appearances.SelectMany(a => a.Match.Players.Where(p => p.Team != a.Team))
-                    .Select(p => p.PlayerId).Distinct().Count());
+                    .Select(p => p.PlayerId).Distinct().Count(), player.IsRemoved);
         }).OrderByDescending(p => p.GamesPlayed).ThenByDescending(p => p.Wins)
             .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.DisplayName, StringComparer.Ordinal).ThenBy(p => p.PlayerId).ToArray();
-        return new(session.Players.Count, session.NumberOfCourts, completed.Count,
+        return new(session.Players.Count(p => !p.IsRemoved), session.NumberOfCourts, completed.Count,
             completed.Sum(m => m.Players.Count),
             scoring ? completed.Sum(m => m.TotalRallies ?? 0) : null,
             scoring ? completed.Sum(m => m.TaggedRallies ?? 0) : null, players);

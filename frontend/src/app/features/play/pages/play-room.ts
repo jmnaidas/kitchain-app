@@ -115,11 +115,16 @@ export class PlayRoom {
   // The server's array order is authoritative. Tickets are never sorted or changed here.
   protected readonly positions = computed(() =>
     Object.fromEntries(
-      (this.session()?.waitingQueue ?? []).map((player, index) => [player.id, index + 1]),
+      [...(this.session()?.queue.nextUp ?? []), ...(this.session()?.queue.waiting ?? [])].map(
+        (player, index) => [player.id, index + 1],
+      ),
     ),
   );
-  protected readonly restingCount = computed(
-    () => this.session()?.players.filter((player) => player.state === 'Resting').length ?? 0,
+  protected readonly nextUpIds = computed(
+    () => new Set(this.session()?.queue.nextUp.map((p) => p.id) ?? []),
+  );
+  protected readonly sittingOut = computed(
+    () => this.session()?.players.filter((p) => p.state === 'Resting') ?? [],
   );
 
   constructor() {
@@ -294,7 +299,7 @@ export class PlayRoom {
     this.change('start', this.api.start(this.code), 'Session started. Your crew is ready.');
   }
   protected renameGuest(intent: { playerId: string; displayName: string }) {
-    if (this.session()?.status !== 'Draft') return;
+    if (this.session()?.status === 'Ended') return;
     this.change(
       'rename:' + intent.playerId,
       this.api.renameGuest(this.code, intent.playerId, intent.displayName),
@@ -302,11 +307,11 @@ export class PlayRoom {
     );
   }
   protected removeGuest(playerId: string) {
-    if (this.session()?.status !== 'Draft') return;
+    if (this.session()?.status === 'Ended') return;
     this.change(
       'remove:' + playerId,
       this.api.removeGuest(this.code, playerId),
-      'Player removed from the Draft roster.',
+      'Player removed from the roster. Completed history remains available.',
     );
   }
   protected endSession() {
@@ -365,7 +370,7 @@ export class PlayRoom {
         ? this.api.rest(this.code, player.id)
         : this.api.rejoin(this.code, player.id),
       action === 'rest'
-        ? `${player.displayName} is taking a break.`
+        ? `${player.displayName} is sitting out.`
         : `${player.displayName} rejoined the session. Courts and queue are up to date.`,
     );
   }

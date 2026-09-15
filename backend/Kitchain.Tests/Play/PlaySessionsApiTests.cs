@@ -236,9 +236,9 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         var match = Assert.Single(active.CurrentMatches);
         using var scoring = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/rallies", new { winner = "A" });
         Assert.Equal(HttpStatusCode.Conflict, scoring.StatusCode);
-        using var forbiddenEdit = await fixture.Client.PatchAsJsonAsync($"{url}/players/{first.Id}", new { displayName = "Too late" });
-        using var forbiddenRemove = await fixture.Client.DeleteAsync($"{url}/players/{first.Id}");
-        Assert.Equal(HttpStatusCode.Conflict, forbiddenEdit.StatusCode);
+        using var activeRename = await fixture.Client.PatchAsJsonAsync($"{url}/players/{first.Id}", new { displayName = "Active name" });
+        using var forbiddenRemove = await fixture.Client.DeleteAsync($"{url}/players/{match.Players[0].PlayerId}");
+        Assert.Equal(HttpStatusCode.OK, activeRename.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, forbiddenRemove.StatusCode);
         using var finish = await fixture.Client.PostAsync($"{url}/matches/{match.Id}/finish", null);
         Assert.Equal(HttpStatusCode.OK, finish.StatusCode);

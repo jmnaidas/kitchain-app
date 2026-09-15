@@ -231,39 +231,75 @@
               }
             </div>
           } @else if (view() === 'queue') {
-            @if (room.waitingQueue.length) {
-              <section aria-labelledby="waiting-title">
-                <div class="section-title">
-                  <h2 id="waiting-title">Waiting players</h2>
-                  <span>{{ room.waitingQueue.length }} available</span>
-                </div>
-                <p class="muted">
-                  Fewer missed opportunities, varied groups when fairness allows, and varied teams.
-                  View Courts for the recommended next game.
-                </p>
-                <app-play-player-list
-                  [players]="room.waitingQueue"
-                  [positions]="positions()"
-                  [disabled]="blocked()"
-                  [draft]="room.status === 'Draft'"
-                  [completedPlayers]="completedPlayers()"
-                  (stateChange)="changePlayer($event)"
-                  (renamePlayer)="renameGuest($event)"
-                  (removePlayer)="removeGuest($event)"
-                />
-              </section>
-            } @else {
-              <div class="empty">
-                <h2>A moment between games.</h2>
-                <p>
-                  No one is waiting. Check Courts for completed games or Players for the whole crew.
-                </p>
+            <section aria-labelledby="next-up-title">
+              <div class="section-title">
+                <h2 id="next-up-title">Next Up</h2>
+                @if (room.queue.courtNumber) {
+                  <span>Court {{ room.queue.courtNumber }} · projected</span>
+                }
               </div>
-            }
-            @if (restingCount()) {
-              <button class="resting-link" type="button" (click)="view.set('players')">
-                {{ restingCount() }} taking a break · View players →
-              </button>
+              <p class="muted">
+                Fair Rotation projection. Confirm the next game in Courts; manage players in
+                Players.
+              </p>
+              @if (room.queue.nextUp.length) {
+                <app-play-player-list
+                  [players]="room.queue.nextUp"
+                  [positions]="positions()"
+                  [nextUp]="nextUpIds()"
+                  [featured]="true"
+                  [managed]="false"
+                />
+              }
+              @if (room.status === 'Ended') {
+                <p>This session has ended. No upcoming games.</p>
+              } @else if (room.queue.neededPlayers) {
+                <p>
+                  {{ room.queue.neededPlayers }} more eligible players needed for the next game.
+                  Players on current courts remain unavailable until next-game confirmation.
+                </p>
+              } @else if (room.queue.heldPlayers) {
+                <p>
+                  {{ room.queue.heldPlayers }} players in the projected lineup are still held on
+                  Court {{ room.queue.courtNumber }}. Review the full lineup in Courts.
+                </p>
+              }
+            </section>
+            <section aria-labelledby="waiting-title">
+              <div class="section-title">
+                <h2 id="waiting-title">Waiting players</h2>
+                <span>{{ room.queue.waiting.length }} waiting</span>
+              </div>
+              <p class="muted">
+                Remaining eligible players, ordered by fairness priority. Group and team variety are
+                considered when a game is confirmed.
+              </p>
+              <app-play-player-list
+                [players]="room.queue.waiting"
+                [positions]="positions()"
+                [disabled]="blocked()"
+                [draft]="room.status === 'Draft'"
+                [managed]="room.status === 'Draft'"
+                [readOnly]="room.status === 'Ended'"
+                (renamePlayer)="renameGuest($event)"
+                (removePlayer)="removeGuest($event)"
+              />
+              @if (!room.queue.waiting.length) {
+                <p>No additional players waiting.</p>
+              }
+            </section>
+            @if (sittingOut().length) {
+              <section aria-labelledby="sitting-out-title">
+                <h2 id="sitting-out-title">Sitting Out</h2>
+                <app-play-player-list
+                  [players]="sittingOut()"
+                  [positions]="positions()"
+                  [managed]="false"
+                />
+                <button class="resting-link" type="button" (click)="view.set('players')">
+                  {{ sittingOut().length }} sitting out · View players →
+                </button>
+              </section>
             }
           } @else {
             <div class="section-title">
@@ -276,6 +312,8 @@
             <app-play-player-list
               [players]="room.players"
               [courts]="playerCourts()"
+              [nextUp]="nextUpIds()"
+              [readOnly]="room.status === 'Ended'"
               [positions]="positions()"
               [disabled]="blocked()"
               (stateChange)="changePlayer($event)"

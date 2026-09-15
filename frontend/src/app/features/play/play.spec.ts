@@ -44,6 +44,13 @@ const room = (
   players: PlayPlayer[] = [],
   waitingQueue = players.filter((p) => p.state === 'Waiting'),
 ): PlaySession => ({
+  queue: {
+    nextUp: [],
+    waiting: waitingQueue,
+    neededPlayers: Math.max(0, 4 - waitingQueue.length),
+    heldPlayers: 0,
+    courtNumber: null,
+  },
   insights: {
     totalPlayers: players.length,
     numberOfCourts: 2,
@@ -329,7 +336,7 @@ describe('Play experience', () => {
     );
     click('Players 9');
     expect(element.textContent).toMatch(/Playing\s+·\s+Court 1/);
-    expect(element.querySelector('[aria-label="Take a break for Alex"]')).toBeNull();
+    expect(element.querySelector('[aria-label="Sit out Alex"]')).toBeNull();
     click('Courts');
     click('Finish game on Court 1');
     http.expectNone(`${base}/${code}/matches/match-1/finish`);
@@ -353,6 +360,7 @@ describe('Play experience', () => {
         },
       ],
       waitingQueue: [waiting[4], ...crew.slice(0, 4)],
+      queue: { ...active.queue, waiting: [waiting[4], ...crew.slice(0, 4)] },
       players: [
         ...waiting.slice(0, 4).map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null })),
         waiting[4],
@@ -512,17 +520,176 @@ describe('Play experience', () => {
     expect(element.textContent).toContain('Waiting players');
   });
 
+  it('shows exclusive roster statuses and a server-projected queue without duplicating management controls', async () => {
+    const state = scoredRoom();
+    const resting = player('r', 'Robin', null, 'Resting');
+    const later = player('z', 'Zoe', 99);
+    state.players.push(resting, later);
+    state.waitingQueue.push(later);
+    state.queue = {
+      nextUp: state.waitingQueue.slice(0, 4),
+      waiting: [later],
+      neededPlayers: 0,
+      heldPlayers: 0,
+      courtNumber: null,
+    };
+    await openRoom(state);
+    expect(element.querySelector('#next-up-title')?.textContent).toBe('Next Up');
+    expect(
+      element
+        .querySelector('section[aria-labelledby="next-up-title"] ol')
+        ?.classList.contains('featured'),
+    ).toBe(true);
+    expect(
+      element.querySelector('section[aria-labelledby="waiting-title"]')?.textContent,
+    ).toContain('Zoe');
+    expect(
+      element.querySelector('section[aria-labelledby="sitting-out-title"]')?.textContent,
+    ).toContain('Robin');
+    expect(element.querySelector('app-play-player-list button')).toBeNull();
+    click(`Players ${state.players.length}`);
+    const row = (name: string) =>
+      Array.from(element.querySelectorAll('app-play-player-list li')).find(
+        (node) => node.querySelector('strong')?.textContent === name,
+      )!;
+    expect(row('Alex').querySelector('.state')?.textContent).toMatch(/Playing\s+·\s+Court 1/);
+    expect(row('Alex').querySelector('[aria-label="Sit out Alex"]')).toBeNull();
+    expect(row('Alex').querySelector('[aria-label="Remove Alex"]')).toBeNull();
+    expect(row('Alex').querySelector('[aria-label="Rename Alex"]')).not.toBeNull();
+    expect(row('Ellis').querySelector('.state')?.textContent?.trim()).toBe('Next Up');
+    expect(row('Zoe').querySelector('.state')?.textContent?.trim()).toBe('Waiting');
+    expect(row('Robin').querySelector('.state')?.textContent?.trim()).toBe('Sitting Out');
+    expect(row('Robin').querySelector('[aria-label="Rejoin Robin"]')).not.toBeNull();
+    expect(row('Zoe').querySelector('.identity .player-meta app-play-draft-player')).not.toBeNull();
+    http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('keeps active rename edits on validation conflicts, accepts canonical names, and confirms safe removal', async () => {
+    const state = { ...room(crew.slice(0, 3)), status: 'Active' as const };
+    await openRoom(state);
+    click('Players 3');
+    click('Rename Alex');
+    const edit = (name: string) => {
+      const form = element.querySelector<HTMLFormElement>('app-play-draft-player form')!;
+      const input = form.querySelector('input')!;
+      input.value = name;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+    };
+    edit('  ');
+    expect(element.textContent).toContain('Enter a name of 1–80 characters.');
+    http.expectNone((request) => request.method !== 'GET');
+    edit('Blair');
+    http
+      .expectOne(`${base}/${code}/players/a`)
+      .flush(
+        { title: 'A player with this name is already in the session. Use a distinct name.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    http.expectOne(`${base}/${code}`).flush(state);
+    await settle();
+    expect(element.textContent).toContain('That name is already on the roster');
+    expect(element.querySelector<HTMLInputElement>('app-play-draft-player form input')?.value).toBe(
+      'Blair',
+    );
+    edit('  Alec  ');
+    const rename = http.expectOne(`${base}/${code}/players/a`);
+    expect(rename.request.body).toEqual({ displayName: 'Alec' });
+    const renamed = {
+      ...room([{ ...crew[0], displayName: 'Alec' }, crew[1], crew[2]]),
+      status: 'Active' as const,
+    };
+    rename.flush(renamed);
+    await settle();
+    expect(element.querySelector('app-play-draft-player form')).toBeNull();
+    click('Remove Blair');
+    expect(element.textContent).toContain('Their completed match history will remain available.');
+    click('Cancel');
+    http.expectNone((request) => request.method === 'DELETE');
+    click('Remove Blair');
+    click('Remove player');
+    const removal = http.expectOne(`${base}/${code}/players/b`);
+    expect(removal.request.method).toBe('DELETE');
+    expect(queueNames()).toContain('Blair');
+    removal.flush({ ...room([renamed.players[0], crew[2]]), status: 'Active' });
+    await settle();
+    expect(queueNames()).toEqual(['Alec', 'Casey']);
+    click('Queue 2');
+    expect(element.textContent).toContain('2 more eligible players needed');
+    expect(element.querySelector('section[aria-labelledby="next-up-title"] li')).toBeNull();
+  });
+
+  it('refetches roster and queue changes over SignalR and removes management after End Session', async () => {
+    const state = { ...room(crew.slice(0, 3)), status: 'Active' as const };
+    await openRoom(state);
+    click('Players 3');
+    click('Remove Alex');
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    const playing = { ...crew[0], state: 'Playing' as const, queueOrder: null };
+    http
+      .expectOne(`${base}/${code}`)
+      .flush({ ...room([playing, crew[1], crew[2]]), status: 'Active' });
+    await settle();
+    expect(button('Remove player').disabled).toBe(true);
+    expect(element.textContent).toContain('This player is now on a current court');
+    click('Cancel');
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    const ended = { ...state, status: 'Ended' as const, matchHistory: [summary()] };
+    http.expectOne(`${base}/${code}`).flush(ended);
+    await settle();
+    expect(element.querySelector('app-play-player-list button')).toBeNull();
+    expect(element.querySelector('app-play-draft-player')).toBeNull();
+    click('Match History');
+    expect(element.querySelector('app-play-match-summary')).not.toBeNull();
+    click('Insights');
+    expect(element.querySelector('app-play-insights')).not.toBeNull();
+    http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('explains held projected players without assigning contradictory Next Up statuses', async () => {
+    const state = completedRoom(scoredRoom());
+    state.queue = {
+      nextUp: [],
+      waiting: state.waitingQueue,
+      neededPlayers: 0,
+      heldPlayers: 4,
+      courtNumber: 1,
+    };
+    await openRoom(state);
+    expect(element.textContent).toContain(
+      '4 players in the projected lineup are still held on Court 1',
+    );
+    click(`Players ${state.players.length}`);
+    const alex = Array.from(element.querySelectorAll('app-play-player-list li')).find(
+      (node) => node.querySelector('strong')?.textContent === 'Alex',
+    )!;
+    expect(alex.querySelector('.state')?.textContent).toContain('Playing');
+    expect(alex.querySelector('.state')?.textContent).toContain('awaiting next lineup');
+    expect(alex.querySelector('.state')?.textContent).not.toContain('Next Up');
+    expect(alex.querySelector('[aria-label="Sit out Alex"]')).toBeNull();
+  });
+
   it('takes a break using the returned session without optimistic reordering', async () => {
     await openRoom({ ...room(crew), status: 'Active' });
-    click('Take a break for Alex');
+    click('Players 5');
+    click('Sit out Alex');
     const rest = http.expectOne(`${base}/${code}/players/a/rest`);
     expect(queueNames()[0]).toBe('Alex');
     rest.flush(
       room([{ ...crew[0], state: 'Resting', queueOrder: null }, ...crew.slice(1)], crew.slice(1)),
     );
     await settle();
-    expect(queueNames()).toEqual(['Blair', 'Casey', 'Drew', 'Ellis']);
-    expect(element.textContent).toContain('1 taking a break');
+    click('Queue 4');
+    expect(
+      Array.from(
+        element.querySelectorAll('section[aria-labelledby="waiting-title"] strong'),
+        (node) => node.textContent,
+      ),
+    ).toEqual(['Blair', 'Casey', 'Drew', 'Ellis']);
+    expect(element.textContent).toContain('1 sitting out');
     http.expectNone(`${base}/${code}`);
   });
 
@@ -533,8 +700,8 @@ describe('Play experience', () => {
     click('Players 3');
     expect(queueNames()).toEqual(['Alex', 'Blair', 'Frankie']);
     expect(element.textContent).toContain('Playing');
-    expect(element.querySelector('[aria-label="Take a break for Frankie"]')).toBeNull();
-    click('Rejoin queue for Alex');
+    expect(element.querySelector('[aria-label="Sit out Frankie"]')).toBeNull();
+    click('Rejoin Alex');
     http
       .expectOne(`${base}/${code}/players/a/rejoin`)
       .flush(
@@ -555,7 +722,8 @@ describe('Play experience', () => {
     await settle();
     expect(element.textContent).toContain('Session active');
     expect(element.textContent).not.toContain('Start Session');
-    click('Take a break for Alex');
+    click('Players 5');
+    click('Sit out Alex');
     http
       .expectOne(`${base}/${code}/players/a/rest`)
       .flush({ title: 'This session has ended.' }, { status: 409, statusText: 'Conflict' });
@@ -563,7 +731,7 @@ describe('Play experience', () => {
     await settle();
     expect(element.textContent).toContain('view-only');
     expect(element.querySelector<HTMLInputElement>('#guest-name')?.matches(':disabled')).toBe(true);
-    expect(button('Take a break for Alex').disabled).toBe(true);
+    expect(element.querySelector('[aria-label="Sit out Alex"]')).toBeNull();
   });
 
   it('requires refresh if a confirmed guest cannot be refetched, and never silently repeats the POST', async () => {
@@ -1025,10 +1193,9 @@ describe('Play experience', () => {
       'Losses',
     );
     expect(insights.querySelector('abbr')).toBeNull();
-    expect(Array.from(insights.querySelectorAll('tbody th'), (node) => node.textContent)).toEqual([
-      'Blair',
-      'Alex',
-    ]);
+    expect(
+      Array.from(insights.querySelectorAll('tbody th'), (node) => node.textContent?.trim()),
+    ).toEqual(['Blair', 'Alex']);
     expect(
       Array.from(insights.querySelectorAll('tbody tr:first-child td'), (node) => node.textContent),
     ).toEqual(['3', '2', '0', '2', '4']);
@@ -1280,6 +1447,7 @@ describe('Play experience', () => {
     const rotated: PlaySession = {
       ...state,
       waitingQueue: crew.slice(0, 4),
+      queue: { ...state.queue, waiting: crew.slice(0, 4) },
       players: [
         ...crew.slice(0, 4),
         ...next.map((p) => ({ ...p, state: 'Playing' as const, queueOrder: null })),
@@ -1351,12 +1519,12 @@ describe('Play experience', () => {
     expect(identity.querySelector('strong')?.textContent).toBe('Alex');
     const metadata = identity.querySelector('.player-meta')!;
     expect(metadata.querySelector('.state')?.textContent).toContain('Waiting');
-    expect(metadata.querySelector('[aria-label="Edit Alex"]')?.tagName).toBe('BUTTON');
+    expect(metadata.querySelector('[aria-label="Rename Alex"]')?.tagName).toBe('BUTTON');
     expect(metadata.querySelector('[aria-label="Remove Alex"]')?.tagName).toBe('BUTTON');
-    expect(element.querySelector('[aria-label^="Take a break"]')).toBeNull();
-    expect(element.querySelector('[aria-label^="Rejoin queue"]')).toBeNull();
-    click('Edit Alex');
-    expect(identity.querySelector('form[aria-label="Edit Alex"] input')).not.toBeNull();
+    expect(element.querySelector('[aria-label^="Sit out"]')).toBeNull();
+    expect(element.querySelector('[aria-label^="Rejoin "]')).toBeNull();
+    click('Rename Alex');
+    expect(identity.querySelector('form[aria-label="Rename Alex"] input')).not.toBeNull();
     click('Cancel');
     click('Remove Alex');
     expect(identity.querySelector('[role="group"][aria-label="Remove Alex?"]')).not.toBeNull();
@@ -1433,7 +1601,8 @@ describe('Play experience', () => {
     await settle();
     expect(element.querySelector('app-play-session-form')).toBeNull();
     expect(element.textContent).not.toContain('Edit Session');
-    expect(element.querySelector('[aria-label="Take a break for Alex"]')).not.toBeNull();
+    click('Players 5');
+    expect(element.querySelector('[aria-label="Sit out Alex"]')).not.toBeNull();
   });
 
   it('validates complete dates and creates a session that crosses midnight', async () => {
@@ -1458,8 +1627,8 @@ describe('Play experience', () => {
 
   it('edits Draft names inline and confirms roster removal', async () => {
     await openRoom(room(crew.slice(0, 2)));
-    click('Edit Alex');
-    const editor = element.querySelector<HTMLFormElement>('form[aria-label="Edit Alex"]')!;
+    click('Rename Alex');
+    const editor = element.querySelector<HTMLFormElement>('form[aria-label="Rename Alex"]')!;
     const input = editor.querySelector<HTMLInputElement>('input')!;
     input.value = 'Alec';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1471,7 +1640,6 @@ describe('Play experience', () => {
     rename.flush(room([{ ...crew[0], displayName: 'Alec' }, crew[1]]));
     await settle();
     expect(queueNames()).toEqual(['Alec', 'Blair']);
-    click('Cancel');
     click('Remove Blair');
     http.expectNone(() => true);
     click('Cancel');
@@ -1561,6 +1729,7 @@ describe('Play experience', () => {
     const stale = {
       ...state,
       waitingQueue: state.waitingQueue.slice(1),
+      queue: { ...state.queue, waiting: state.waitingQueue.slice(1) },
       currentMatches: [
         {
           ...state.currentMatches[0],
@@ -1593,7 +1762,9 @@ describe('Play experience', () => {
     expect(element.textContent).toContain('Team A wins');
     expect(element.querySelector('.rally-actions')).toBeNull();
     click('Players 8');
-    expect(element.textContent).toMatch(/Game complete\s+·\s+Court 1/);
+    expect(element.textContent).toMatch(
+      /Playing\s+·\s+Court 1\s+·\s+Game complete; awaiting next lineup/,
+    );
     click('Courts');
     liveEvents.next({ kind: 'changed' });
     TestBed.tick();

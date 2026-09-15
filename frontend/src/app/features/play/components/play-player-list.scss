@@ -85,7 +85,7 @@ button:disabled {
 }
 
 li:has(app-play-draft-player) {
-  grid-template-columns: 2.2rem minmax(0, 1fr);
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
   row-gap: 0;
   padding-block: 0.65rem;
 }
@@ -102,5 +102,9 @@ li:has(app-play-draft-player) {
 @media (max-width: 400px) {
   li:has(app-play-draft-player) {
     grid-template-columns: 1.6rem minmax(0, 1fr);
+  }
+  li > button {
+    grid-column: 2;
+    justify-self: start;
   }
 }
