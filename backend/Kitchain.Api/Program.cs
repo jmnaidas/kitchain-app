@@ -11,6 +11,18 @@ using Kitchain.Api.Play;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("https://kitchain-app-dun.vercel.app")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
@@ -44,6 +56,8 @@ if (args.Contains("--seed-courts", StringComparer.Ordinal))
 }
 
 app.UseExceptionHandler();
+app.UseCors("Frontend");
+
 app.MapControllers();
 app.MapHub<PlayHub>("/hubs/play");
 if (app.Environment.IsDevelopment())
