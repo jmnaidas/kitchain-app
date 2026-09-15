@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://kitchain-api-csgbabergmbtb0de.southeastasia-01.azurewebsites.net/api/:path*"
+    },
+    {
+      "source": "/hubs/:path*",
+      "destination": "https://kitchain-api-csgbabergmbtb0de.southeastasia-01.azurewebsites.net/hubs/:path*"
+    }
+  ]
+}
