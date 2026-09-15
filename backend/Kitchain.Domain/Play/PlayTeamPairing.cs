@@ -7,7 +7,7 @@ namespace Kitchain.Domain.Play;
 internal static class PlayTeamPairing
 {
     public static PlaySessionPlayer[] Recommend(Guid sessionId, IReadOnlyList<PlaySessionPlayer> selected,
-        IEnumerable<PlayMatch> history, Guid seed)
+        IEnumerable<PlayMatch> history, Guid seed, PlayMatch? avoidPartnersFrom = null)
     {
         if (selected.Count != 4) return selected.ToArray();
         var matches = history.Where(m => m.SessionId == sessionId)
@@ -36,9 +36,16 @@ internal static class PlayTeamPairing
             // Random persisted IDs provide a stable tie lottery for this court transition.
             // Re-reading/resetting a preview cannot change it or invalidate its own confirmation.
             var key = seed.ToString("N") + string.Concat(order.Select(i => selected[i].Id.ToString("N")));
-            return new { Order = order, OverThreshold = (first.Total >= 2 ? 1 : 0) + (second.Total >= 2 ? 1 : 0),
+            bool PreviousPartners(int a, int b) => avoidPartnersFrom is not null &&
+                avoidPartnersFrom.Players.Any(one => one.PlayerId == selected[a].Id &&
+                    avoidPartnersFrom.Players.Any(two => two.PlayerId == selected[b].Id && two.Team == one.Team));
+            return new { Order = order, ImmediateRepeats = (PreviousPartners(order[0], order[1]) ? 1 : 0) +
+                    (PreviousPartners(order[2], order[3]) ? 1 : 0),
+                OverThreshold = (first.Total >= 2 ? 1 : 0) + (second.Total >= 2 ? 1 : 0),
                 Cost = 4L * (first.Total + second.Total) + 8L * (first.Recent + second.Recent) + opponents.Sum(p => (long)p.Total + 2L * p.Recent), Tie = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) };
         }).ToArray();
+        if (avoidPartnersFrom is not null)
+            candidates = candidates.Where(candidate => candidate.ImmediateRepeats == candidates.Min(c => c.ImmediateRepeats)).ToArray();
         var belowThreshold = candidates.Where(candidate => candidate.OverThreshold == 0).ToArray();
         var ranked = (belowThreshold.Length > 0 ? belowThreshold : candidates)
             .OrderBy(candidate => candidate.Cost).ThenBy(candidate => candidate.Tie, StringComparer.Ordinal).First();

@@ -32,6 +32,27 @@
         <span>Track scores, serving team, server and match results in Kitchain.</span></label
       >
     </fieldset>
+    <fieldset class="session-mode" aria-describedby="rotation-help">
+      <legend>Rotation style</legend>
+      @for (style of rotationStyles; track style.value) {
+        <label
+          ><input
+            type="radio"
+            name="rotationMode"
+            [value]="style.value"
+            [checked]="rotationMode() === style.value"
+            (change)="rotationMode.set(style.value)"
+          />
+          {{ style.label }}<span>{{ style.description }}</span></label
+        >
+      }
+      <p id="rotation-help" class="help">
+        Locked once the session starts. Games without a result use Fair Rotation.
+      </p>
+      @if (errors()['rotationMode']) {
+        <p class="help error" role="alert">{{ errors()['rotationMode'] }}</p>
+      }
+    </fieldset>
     <div class="field">
       <label for="session-name">Session name</label>
       <input

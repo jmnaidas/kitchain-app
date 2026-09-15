@@ -7,19 +7,19 @@ namespace Kitchain.Domain.Play;
 internal static class PlayFairRotation
 {
     public static PlaySessionPlayer[] Select(IReadOnlyList<PlaySessionPlayer> eligible,
-        IEnumerable<PlayMatch> history, Guid seed)
+        IEnumerable<PlayMatch> history, Guid seed, int count = 4)
     {
-        if (eligible.Count < 4) return eligible.ToArray();
+        if (eligible.Count < count) return eligible.ToArray();
         var matches = history.OrderByDescending(m => m.StartedAt).ThenByDescending(m => m.Id).ToArray();
         var mandatory = new List<PlaySessionPlayer>();
         foreach (var tier in eligible.GroupBy(p => (p.AdjustedGamesStarted, Band: p.MissedOpportunities / 2))
             .OrderBy(g => g.Key.AdjustedGamesStarted).ThenByDescending(g => g.Key.Band))
         {
-            var needed = 4 - mandatory.Count;
+            var needed = count - mandatory.Count;
             if (tier.Count() <= needed)
             {
                 mandatory.AddRange(tier);
-                if (mandatory.Count == 4) return mandatory.OrderBy(p => p.Id).ToArray();
+                if (mandatory.Count == count) return mandatory.OrderBy(p => p.Id).ToArray();
                 continue;
             }
             // Only the boundary tier is capped; higher-priority players are never dropped.

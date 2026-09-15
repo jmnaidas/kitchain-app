@@ -19,9 +19,9 @@ const conflicts: Record<string, string> = {
   'This court is no longer awaiting a next game.':
     'Another host has already changed this court. Refresh to see its current game.',
   'The next lineup has changed. Refresh and choose four eligible players.':
-    'A selected player is no longer eligible for this court. Refresh, then reset to fair rotation or edit the lineup.',
+    'A selected player is no longer eligible for this court. Refresh, then reset to the recommendation or edit the lineup.',
   'The fair lineup has changed. Refresh before starting the next game.':
-    'The fair recommendation has changed. Reset to fair rotation before confirming.',
+    'The recommendation has changed. Reset to the recommendation before confirming.',
   'Only an Active session can be scored.':
     'This session is not active. Refresh to see its current state.',
   'The score cannot be increased further. Correct the score.':
@@ -45,6 +45,7 @@ const conflicts: Record<string, string> = {
     'We couldn’t reserve a session code. Please try creating your session again.',
 };
 const fieldMessages: Record<string, string> = {
+  rotationMode: 'Choose one of the four rotation styles.',
   name: 'Enter a session name of 1–200 characters.',
   date: 'Enter a valid start date.',
   endDate: 'Enter a valid end date.',

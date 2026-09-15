@@ -1,7 +1,7 @@
 namespace Kitchain.Domain.Play;
 
 public enum PlaySessionStatus { Draft, Active, Ended }
-public enum PlayRotationMode { FairRotation }
+public enum PlayRotationMode { FairRotation, WinnersStay, ChallengersStay, SplitTeams }
 public enum PlayScoringMode { Traditional }
 public enum PlaySessionMode { QueueOnly, LiveScoring }
 
@@ -16,18 +16,18 @@ public sealed class PlaySession
 
     public PlaySession(Guid id, string joinCode, string name, DateOnly sessionDate, TimeOnly startTime,
         TimeOnly endTime, int numberOfCourts, int? maximumPlayers, DateTimeOffset createdAt,
-        PlaySessionMode mode = PlaySessionMode.QueueOnly, DateOnly? endDate = null)
+        PlaySessionMode mode = PlaySessionMode.QueueOnly, DateOnly? endDate = null,
+        PlayRotationMode rotationMode = PlayRotationMode.FairRotation)
     {
         if (id == Guid.Empty) throw new ArgumentException("An ID is required.", nameof(id));
         var code = NormalizeCode(joinCode);
         if (code.Length != JoinCodeLength || code.Any(c => !JoinCodeAlphabet.Contains(c)))
             throw new ArgumentException("Use a six-character join code from the supported alphabet.", nameof(joinCode));
-        SetDetails(name, sessionDate, startTime, endDate ?? sessionDate, endTime, numberOfCourts, maximumPlayers, mode);
+        SetDetails(name, sessionDate, startTime, endDate ?? sessionDate, endTime, numberOfCourts, maximumPlayers, mode, rotationMode);
         if (createdAt == default) throw new ArgumentException("A creation timestamp is required.", nameof(createdAt));
         Id = id;
         JoinCode = code;
         Status = PlaySessionStatus.Draft;
-        RotationMode = PlayRotationMode.FairRotation;
         ScoringMode = PlayScoringMode.Traditional;
         GameTo = 11;
         WinBy = 2;
@@ -164,7 +164,7 @@ public sealed class PlaySession
             .SelectMany(m => m.Players).Select(p => p.PlayerId).ToHashSet();
         return WaitingQueue.Concat(_players.Where(p => p.State == PlayPlayerState.Playing && returning.Contains(p.Id))
                 .OrderBy(p => p.JoinedAt).ThenBy(p => p.Id))
-            .Where(p => !elsewhere.Contains(p.Id)).ToArray();
+            .Where(p => !p.IsRemoved && !elsewhere.Contains(p.Id)).ToArray();
     }
 
     public void StartNextGame(Guid matchId, IReadOnlyList<Guid> playerIds, bool overrideLineup, DateTimeOffset now)
@@ -240,7 +240,7 @@ public sealed class PlaySession
     }
 
     private IReadOnlyList<PlaySessionPlayer> Recommend(IReadOnlyList<PlaySessionPlayer> eligible, Guid seed) =>
-        PlayTeamPairing.Recommend(Id, PlayFairRotation.Select(eligible, _matches, seed), _matches, seed);
+        PlayRotationPolicy.Recommend(Id, RotationMode, eligible, _matches, seed);
 
     // A preview only: no opportunity counters or tickets are changed by a read.
     public (IReadOnlyList<PlaySessionPlayer> Next, IReadOnlyList<PlaySessionPlayer> Waiting,
@@ -303,16 +303,17 @@ public sealed class PlaySession
     }
 
     public void EditDetails(string name, DateOnly startDate, TimeOnly startTime, DateOnly endDate,
-        TimeOnly endTime, int numberOfCourts, int? maximumPlayers, PlaySessionMode mode, DateTimeOffset now)
+        TimeOnly endTime, int numberOfCourts, int? maximumPlayers, PlaySessionMode mode, DateTimeOffset now,
+        PlayRotationMode? rotationMode = null)
     {
         EnsureOpen(now);
         if (Status != PlaySessionStatus.Draft) throw new PlayConflictException("Only a Draft session can edit its details.");
-        SetDetails(name, startDate, startTime, endDate, endTime, numberOfCourts, maximumPlayers, mode);
+        SetDetails(name, startDate, startTime, endDate, endTime, numberOfCourts, maximumPlayers, mode, rotationMode ?? RotationMode);
         UpdatedAt = now.ToUniversalTime();
     }
 
     private void SetDetails(string name, DateOnly startDate, TimeOnly startTime, DateOnly endDate,
-        TimeOnly endTime, int numberOfCourts, int? maximumPlayers, PlaySessionMode mode)
+        TimeOnly endTime, int numberOfCourts, int? maximumPlayers, PlaySessionMode mode, PlayRotationMode rotationMode)
     {
         var normalized = name?.Trim();
         if (string.IsNullOrEmpty(normalized) || normalized.Length > 200)
@@ -325,6 +326,8 @@ public sealed class PlaySession
         if (maximumPlayers.HasValue && maximumPlayers.Value < _players.Count(p => !p.IsRemoved))
             throw new PlayConflictException("Maximum players cannot be lower than the current roster size.");
         if (!Enum.IsDefined(mode)) throw new ArgumentException("Choose QueueOnly or LiveScoring.", nameof(mode));
+        if (!Enum.IsDefined(rotationMode)) throw new ArgumentException("Choose a supported rotation style.", nameof(rotationMode));
+        RotationMode = rotationMode;
         Name = normalized;
         SessionDate = startDate;
         StartTime = startTime;

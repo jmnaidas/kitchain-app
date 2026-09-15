@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { PlaySession } from '../data-access/play.models';
+import { PlaySession, rotationLabel } from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-session-header',
@@ -10,6 +10,7 @@ import { PlaySession } from '../data-access/play.models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlaySessionHeader {
+  protected readonly rotationLabel = rotationLabel;
   readonly session = input.required<PlaySession>();
   readonly shareNotice = input('');
   readonly shareFallback = input('');

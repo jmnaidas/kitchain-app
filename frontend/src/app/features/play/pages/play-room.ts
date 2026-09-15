@@ -28,6 +28,7 @@ import { PlayLive, PlayLiveStatus } from '../data-access/play-live';
 import { playIssue } from '../data-access/play-errors';
 import {
   normalizeCode,
+  rotationLabel,
   CreatePlaySession,
   NextPlayGame,
   PlayScoreCorrection,
@@ -54,6 +55,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlayRoom {
+  protected readonly rotationLabel = rotationLabel;
   private readonly api = inject(PlayApi);
   private readonly live = inject(PlayLive);
   private liveSubscription?: Subscription;

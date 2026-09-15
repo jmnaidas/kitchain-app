@@ -239,8 +239,8 @@
                 }
               </div>
               <p class="muted">
-                Fair Rotation projection. Confirm the next game in Courts; manage players in
-                Players.
+                {{ rotationLabel(room.rotationMode) }} projection. Confirm the next game in Courts;
+                manage players in Players.
               </p>
               @if (room.queue.nextUp.length) {
                 <app-play-player-list

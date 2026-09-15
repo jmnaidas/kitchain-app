@@ -138,6 +138,7 @@
       } @else if (session().status === 'Active') {
         <app-play-next-game
           [match]="match"
+          [rotationMode]="session().rotationMode"
           [disabled]="disabled()"
           (startNext)="startNext.emit({ matchId: match.id, lineup: $event })"
         />

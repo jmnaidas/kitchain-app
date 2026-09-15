@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
-import { NextPlayGame, PlayMatch } from '../data-access/play.models';
+import {
+  NextPlayGame,
+  PlayMatch,
+  PlayRotationMode,
+  rotationLabel,
+} from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-next-game',
@@ -9,6 +14,8 @@ import { NextPlayGame, PlayMatch } from '../data-access/play.models';
 })
 export class PlayNextGame {
   readonly match = input.required<PlayMatch>();
+  readonly rotationMode = input<PlayRotationMode>('FairRotation');
+  protected readonly rotationLabel = rotationLabel;
   readonly disabled = input(false);
   readonly startNext = output<NextPlayGame>();
   protected readonly open = signal(false);
@@ -50,7 +57,7 @@ export class PlayNextGame {
       ids.some((id) => !this.match().eligiblePlayers.some((player) => player.id === id))
     ) {
       this.error.set(
-        'Choose four distinct eligible players. Reset to fair rotation if the lineup has changed.',
+        'Choose four distinct eligible players. Reset to the recommendation if the lineup has changed.',
       );
       return;
     }

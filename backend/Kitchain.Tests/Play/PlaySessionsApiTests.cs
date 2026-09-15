@@ -19,6 +19,42 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) }
     };
 
+    [PostgresTheory]
+    [InlineData(PlayRotationMode.FairRotation)]
+    [InlineData(PlayRotationMode.WinnersStay)]
+    [InlineData(PlayRotationMode.ChallengersStay)]
+    [InlineData(PlayRotationMode.SplitTeams)]
+    public async Task Rotation_configuration_persists_through_create_edit_reload_and_lifecycle(PlayRotationMode mode)
+    {
+        using var created = await fixture.Client.PostAsJsonAsync(Route, PlaySessionServiceTests.Input with { RotationMode = mode }, Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var session = (await created.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var url = $"{Route}/{session.JoinCode}";
+        Assert.Equal(mode, (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!.RotationMode);
+        using var legacyEdit = await fixture.Client.PatchAsJsonAsync(url, PlaySessionServiceTests.Input, Json);
+        Assert.Equal(HttpStatusCode.OK, legacyEdit.StatusCode);
+        Assert.Equal(mode, (await legacyEdit.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!.RotationMode);
+        using var edit = await fixture.Client.PatchAsJsonAsync(url, PlaySessionServiceTests.Input with { RotationMode = PlayRotationMode.SplitTeams }, Json);
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(PlayRotationMode.SplitTeams, (await db.Set<PlaySession>().AsNoTracking().SingleAsync(s => s.Id == session.Id)).RotationMode);
+        using var invalid = await fixture.Client.PatchAsJsonAsync(url, new
+        {
+            name = "Crew", date = "2026-09-16", startTime = "18:00:00", endTime = "21:00:00",
+            numberOfCourts = 1, rotationMode = "Unsupported"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+        using var activeEdit = await fixture.Client.PatchAsJsonAsync(url, PlaySessionServiceTests.Input with { RotationMode = mode }, Json);
+        Assert.Equal(HttpStatusCode.Conflict, activeEdit.StatusCode);
+        using var ended = await fixture.Client.PostAsync($"{url}/end", null);
+        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        using var endedEdit = await fixture.Client.PatchAsJsonAsync(url, PlaySessionServiceTests.Input with { RotationMode = mode }, Json);
+        Assert.Equal(HttpStatusCode.Conflict, endedEdit.StatusCode);
+        Assert.Equal(PlayRotationMode.SplitTeams, (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!.RotationMode);
+    }
+
     [PostgresFact]
     public async Task Api_creates_guest_queue_and_persists_rest_rejoin_and_start_with_expected_status_codes()
     {
@@ -28,6 +64,7 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         var session = await create.Content.ReadFromJsonAsync<PlaySessionDetail>(Json);
         Assert.NotNull(session);
         Assert.Equal(PlaySessionStatus.Draft, session.Status);
+        Assert.Equal(PlayRotationMode.FairRotation, session.RotationMode);
         var url = $"{Route}/{session.JoinCode.ToLowerInvariant()}";
         using var first = await fixture.Client.PostAsJsonAsync($"{url}/players", new { displayName = " Alex " });
         using var second = await fixture.Client.PostAsJsonAsync($"{url}/players", new { displayName = "Sam" });

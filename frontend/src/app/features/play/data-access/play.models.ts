@@ -1,3 +1,29 @@
+export type PlayRotationMode = 'FairRotation' | 'WinnersStay' | 'ChallengersStay' | 'SplitTeams';
+export const rotationStyles: { value: PlayRotationMode; label: string; description: string }[] = [
+  {
+    value: 'FairRotation',
+    label: 'Fair Rotation',
+    description: 'Everyone rotates based on games played, waiting time and team variety.',
+  },
+  {
+    value: 'WinnersStay',
+    label: 'Winners Stay',
+    description: 'The winning pair stays on court while the losing pair rotates.',
+  },
+  {
+    value: 'ChallengersStay',
+    label: 'Challengers Stay',
+    description: 'The losing pair stays for another challenge while the winners rotate.',
+  },
+  {
+    value: 'SplitTeams',
+    label: 'Split Teams',
+    description: 'Mix the previous teams and rotate partners for more variety.',
+  },
+];
+export const rotationLabel = (mode: PlayRotationMode) =>
+  rotationStyles.find((style) => style.value === mode)?.label ?? 'Fair Rotation';
+
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
 export type PlayTeam = 'A' | 'B';
@@ -94,7 +120,7 @@ export interface PlaySession {
   numberOfCourts: number;
   maximumPlayers: number | null;
   status: SessionStatus;
-  rotationMode: 'FairRotation';
+  rotationMode: PlayRotationMode;
   scoringMode: 'Traditional';
   gameTo: number;
   winBy: number;
@@ -140,6 +166,7 @@ export interface PlayMatchSummary {
 }
 
 export interface CreatePlaySession {
+  rotationMode?: PlayRotationMode;
   mode: PlaySessionMode;
   name: string;
   date: string;

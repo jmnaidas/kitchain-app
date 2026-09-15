@@ -15,6 +15,7 @@ public sealed record CreatePlaySession
     [Required] public int? NumberOfCourts { get; init; }
     public int? MaximumPlayers { get; init; }
     public PlaySessionMode Mode { get; init; } = PlaySessionMode.QueueOnly;
+    public PlayRotationMode? RotationMode { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -104,7 +105,8 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
                 input.StartTime ?? throw new ArgumentException("Start time is required.", "startTime"),
                 input.EndTime ?? throw new ArgumentException("End time is required.", "endTime"),
                 input.NumberOfCourts ?? throw new ArgumentException("Number of courts is required.", "numberOfCourts"),
-                input.MaximumPlayers, DateTimeOffset.UtcNow, input.Mode, input.EndDate);
+                input.MaximumPlayers, DateTimeOffset.UtcNow, input.Mode, input.EndDate,
+                input.RotationMode ?? PlayRotationMode.FairRotation);
             if (await store.TryAddAsync(session, cancellationToken)) return Detail(session);
         }
         throw new PlayConflictException("A join code could not be allocated. Please try creating the session again.");
@@ -131,7 +133,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
             input.EndDate ?? input.Date ?? throw new ArgumentException("An end date is required.", "endDate"),
             input.EndTime ?? throw new ArgumentException("An end time is required.", "endTime"),
             input.NumberOfCourts ?? throw new ArgumentException("Number of courts is required.", "numberOfCourts"),
-            input.MaximumPlayers, input.Mode, Now(s)), cancellationToken);
+            input.MaximumPlayers, input.Mode, Now(s), input.RotationMode), cancellationToken);
 
     public Task<PlaySessionDetail?> RestAsync(string code, Guid playerId, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.Rest(playerId, Now(s)), cancellationToken);

@@ -6,6 +6,7 @@ import { App } from '../../app';
 import { routes } from '../../app.routes';
 import {
   localDate,
+  rotationStyles,
   PlayMatchSummary,
   PlayPlayer,
   PlayRallyEvent,
@@ -183,6 +184,122 @@ describe('Play experience', () => {
     Array.from(element.querySelectorAll('app-play-player-list strong'), (e) =>
       e.textContent?.trim(),
     );
+
+  it('defaults to Fair Rotation and presents all four concise rotation choices', async () => {
+    await navigate('/play/new');
+    const options = Array.from(
+      element.querySelectorAll<HTMLInputElement>('input[name="rotationMode"]'),
+    );
+    expect(options.map((option) => option.value)).toEqual(
+      rotationStyles.map((style) => style.value),
+    );
+    expect(options.filter((option) => option.checked).map((option) => option.value)).toEqual([
+      'FairRotation',
+    ]);
+    for (const style of rotationStyles) {
+      expect(element.textContent).toContain(style.label);
+      expect(element.textContent).toContain(style.description);
+    }
+  });
+
+  for (const style of rotationStyles) {
+    it('creates and reloads the selected rotation style: ' + style.label, async () => {
+      await navigate('/play/new');
+      fill('session-name', 'Evening crew');
+      fill('session-date', '2026-09-10');
+      fill('start-time', '18:00');
+      fill('end-time', '21:00');
+      const option = element.querySelector<HTMLInputElement>(
+        'input[name="rotationMode"][value="' + style.value + '"]',
+      )!;
+      option.click();
+      fixture.detectChanges();
+      submit();
+      const request = http.expectOne(base);
+      expect(request.request.body.rotationMode).toBe(style.value);
+      const selected = { ...room(), rotationMode: style.value };
+      request.flush(selected);
+      await settle();
+      http.expectOne(base + '/' + code).flush(selected);
+      await settle();
+      expect(element.querySelector('app-play-session-header')?.textContent).toContain(style.label);
+      click('Edit Session');
+      expect(
+        element.querySelector<HTMLInputElement>('input[name="rotationMode"]:checked')?.value,
+      ).toBe(style.value);
+      const other = rotationStyles.find((candidate) => candidate.value !== style.value)!;
+      element
+        .querySelector<HTMLInputElement>('input[name="rotationMode"][value="' + other.value + '"]')!
+        .click();
+      fixture.detectChanges();
+      submit();
+      const edit = http.expectOne(base + '/' + code);
+      expect(edit.request.method).toBe('PATCH');
+      expect(edit.request.body.rotationMode).toBe(other.value);
+      edit.flush({ ...selected, rotationMode: other.value });
+      await settle();
+      expect(element.querySelector('app-play-session-header')?.textContent).toContain(other.label);
+    });
+  }
+
+  for (const status of ['Active', 'Ended'] as const) {
+    it('shows persisted rotation in ' + status + ' without offering settings edits', async () => {
+      await openRoom({ ...room(), rotationMode: 'ChallengersStay', status });
+      expect(element.querySelector('app-play-session-header')?.textContent).toContain(
+        'Challengers Stay',
+      );
+      expect(element.textContent).not.toContain('Edit Session');
+      expect(element.querySelector('input[name="rotationMode"]')).toBeNull();
+      liveEvents.next({ kind: 'changed' });
+      TestBed.tick();
+      http
+        .expectOne(base + '/' + code)
+        .flush({ ...room(), rotationMode: 'ChallengersStay', status });
+      await settle();
+      expect(element.querySelector('app-play-session-header')?.textContent).toContain(
+        'Challengers Stay',
+      );
+    });
+  }
+
+  it('renders preset Queue Next Up exactly as supplied by the backend', async () => {
+    const waiting = [crew[4], crew[0], crew[1]];
+    await openRoom({
+      ...room(waiting),
+      status: 'Active',
+      rotationMode: 'WinnersStay',
+      queue: {
+        nextUp: [crew[1], crew[4]],
+        waiting: [crew[0]],
+        neededPlayers: 0,
+        heldPlayers: 2,
+        courtNumber: 1,
+      },
+    });
+    click('Queue 3');
+    expect(element.textContent).toContain('Winners Stay projection');
+    expect(queueNames()).toEqual(['Blair', 'Ellis', 'Alex']);
+  });
+
+  it('keeps preset confirmation, reset, manual override and no-result explanation on the canonical lineup', async () => {
+    const active = scoredRoom();
+    const held = { ...completedRoom(active, null), rotationMode: 'WinnersStay' as const };
+    await openRoom(held);
+    click('Courts');
+    click('Proceed to next game');
+    expect(element.textContent).toContain('No result recorded. This lineup uses Fair Rotation.');
+    click('Edit lineup');
+    click('Reset to recommendation');
+    expect(element.querySelector('app-play-next-game select')).toBeNull();
+    click('Start Next Game');
+    const next = http.expectOne(base + '/' + code + '/matches/scored-match/next');
+    expect(next.request.body).toEqual({
+      playerIds: held.currentMatches[0].nextLineup.map((p) => p.playerId),
+      overrideLineup: false,
+    });
+    next.flush({ ...active, rotationMode: 'WinnersStay' });
+    await settle();
+  });
 
   it('subscribes after loading, coalesces live reads, and cleans up when changing sessions', async () => {
     await openRoom();
@@ -425,6 +542,7 @@ describe('Play experience', () => {
       name: 'Evening crew',
       date: '2026-09-10',
       endDate: '2026-09-10',
+      rotationMode: 'FairRotation',
       startTime: '18:00:00',
       endTime: '21:00:00',
       numberOfCourts: 2,
@@ -446,14 +564,18 @@ describe('Play experience', () => {
     fill('start-time', '18:00');
     fill('end-time', '21:00');
     submit();
-    http
-      .expectOne(base)
-      .flush(
-        { errors: { EndTime: ['internal exception must never be displayed'] } },
-        { status: 400, statusText: 'Bad Request' },
-      );
+    http.expectOne(base).flush(
+      {
+        errors: {
+          EndTime: ['internal exception must never be displayed'],
+          '$.rotationMode': ['internal exception must never be displayed'],
+        },
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
     await settle();
     expect(element.querySelector('#end-help')?.textContent).toContain('after start');
+    expect(element.textContent).toContain('Choose one of the four rotation styles.');
     expect(element.textContent).not.toContain('internal exception');
     expect(element.querySelector<HTMLInputElement>('#start-time')?.value).toBe('18:00');
   });
@@ -1552,6 +1674,7 @@ describe('Play experience', () => {
     expect(edit.request.body).toEqual({
       name: 'Midnight crew',
       date: '2026-09-14',
+      rotationMode: 'FairRotation',
       startTime: '23:00:00',
       endDate: '2026-09-15',
       endTime: '02:00:00',

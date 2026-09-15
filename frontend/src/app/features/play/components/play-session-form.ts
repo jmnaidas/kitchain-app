@@ -4,6 +4,8 @@ import {
   localDate,
   PlaySession,
   PlaySessionMode,
+  PlayRotationMode,
+  rotationStyles,
 } from '../data-access/play.models';
 
 @Component({
@@ -19,6 +21,8 @@ export class PlaySessionForm {
   readonly serverErrors = input<Record<string, string>>({});
   readonly save = output<CreatePlaySession>();
   readonly cancelEdit = output<void>();
+  protected readonly rotationStyles = rotationStyles;
+  protected readonly rotationMode = signal<PlayRotationMode>('FairRotation');
   protected readonly today = localDate();
   protected readonly mode = signal<PlaySessionMode>('QueueOnly');
   protected readonly endDate = signal(this.today);
@@ -29,6 +33,7 @@ export class PlaySessionForm {
     effect(() => {
       const initial = this.initial();
       this.mode.set(initial?.mode ?? 'QueueOnly');
+      this.rotationMode.set(initial?.rotationMode ?? 'FairRotation');
       this.endDate.set(initial?.endDate ?? this.today);
       this.endDateEdited = initial !== null;
     });
@@ -82,6 +87,7 @@ export class PlaySessionForm {
       startTime: time('startTime'),
       endTime: time('endTime'),
       mode: this.mode(),
+      rotationMode: this.rotationMode(),
       numberOfCourts: Number(text('numberOfCourts')),
       maximumPlayers: text('maximumPlayers') ? Number(text('maximumPlayers')) : null,
     });

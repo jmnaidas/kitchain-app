@@ -16,7 +16,7 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
             table.HasCheckConstraint("CK_PlaySessions_Schedule", "(\"EndDate\" + \"EndTime\") > (\"SessionDate\" + \"StartTime\")");
             table.HasCheckConstraint("CK_PlaySessions_Capacity", "\"NumberOfCourts\" > 0 AND (\"MaximumPlayers\" IS NULL OR \"MaximumPlayers\" > 0)");
             table.HasCheckConstraint("CK_PlaySessions_Status", "\"Status\" IN ('Draft', 'Active', 'Ended')");
-            table.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" = 'FairRotation' AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
+            table.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" IN ('FairRotation', 'WinnersStay', 'ChallengersStay', 'SplitTeams') AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
             table.HasCheckConstraint("CK_PlaySessions_QueueCounter", "\"NextQueueOrder\" >= 0");
             table.HasCheckConstraint("CK_PlaySessions_Timestamps", "\"UpdatedAt\" >= \"CreatedAt\"");
         });

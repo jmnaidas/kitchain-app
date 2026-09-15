@@ -10,6 +10,20 @@ public sealed class PlaySessionServiceTests
         Name = "Evening play", Date = new(2026, 9, 10), StartTime = new(18, 0), EndTime = new(21, 0), NumberOfCourts = 2
     };
 
+    [Theory]
+    [InlineData(PlayRotationMode.FairRotation)]
+    [InlineData(PlayRotationMode.WinnersStay)]
+    [InlineData(PlayRotationMode.ChallengersStay)]
+    [InlineData(PlayRotationMode.SplitTeams)]
+    public async Task Rotation_setting_is_stored_and_returned(PlayRotationMode mode)
+    {
+        var store = new CollisionStore(0);
+        var result = await new PlaySessionService(store, new SequenceCodes("ABCDEF"))
+            .CreateAsync(Input with { RotationMode = mode }, default);
+        Assert.Equal(mode, result.RotationMode);
+        Assert.Equal(mode, Assert.Single(store.Attempts).RotationMode);
+    }
+
     [Fact]
     public async Task Join_code_collision_retries_with_a_fresh_code_and_keeps_defaults_server_owned()
     {
@@ -22,6 +36,7 @@ public sealed class PlaySessionServiceTests
         Assert.Equal(PlaySessionStatus.Draft, result.Status);
         Assert.Equal(PlaySessionMode.QueueOnly, result.Mode);
         Assert.Equal(11, result.GameTo);
+        Assert.Equal(PlayRotationMode.FairRotation, result.RotationMode);
         Assert.Empty(result.WaitingQueue);
     }
 

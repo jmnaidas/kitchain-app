@@ -12,6 +12,7 @@
       }
       {{ session().endDate + 'T' + session().endTime | date: 'shortTime' }}
     </p>
+    <p class="schedule">Rotation · {{ rotationLabel(session().rotationMode) }}</p>
     <div class="meta">
       <span class="status" [attr.data-state]="session().status">{{ session().status }}</span
       ><span
