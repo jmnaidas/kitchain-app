@@ -1,4 +1,4 @@
-<article [attr.aria-label]="'Completed match ' + match().id">
+<article [attr.aria-label]="'Completed game on Court ' + match().courtNumber">
   <header>
     <h3>Court {{ match().courtNumber }}</h3>
     <span>Completed</span>
@@ -21,9 +21,13 @@
     <strong>Team B: {{ teamNames('B') }}</strong>
   </p>
   <p class="timing">
-    Started {{ match().startedAt | date: 'medium' }}
+    {{ match().startedAt | date: 'MMM d, y' }} · Started {{ match().startedAt | date: 'shortTime' }}
     @if (match().completedAt) {
-      · Finished {{ match().completedAt | date: 'medium' }}
+      · Finished
+      @if (!sameDay()) {
+        {{ match().completedAt | date: 'MMM d, y' }}
+      }
+      {{ match().completedAt | date: 'shortTime' }}
     }
   </p>
   @if (match().totalRallies !== null) {
@@ -44,5 +48,4 @@
   } @else {
     <p class="muted">Queue Only · Score and rallies were not tracked.</p>
   }
-  <p class="match-id">Match ID: {{ match().id }}</p>
 </article>

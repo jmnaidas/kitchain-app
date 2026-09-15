@@ -73,6 +73,7 @@ export interface PlayPlayer {
 }
 
 export interface PlaySession {
+  insights: PlayInsights;
   matchHistory: PlayMatchSummary[];
   mode: PlaySessionMode;
   currentMatches: PlayMatch[];
@@ -95,6 +96,24 @@ export interface PlaySession {
   players: PlayPlayer[];
   waitingQueue: PlayPlayer[];
   activeMatches: PlayMatch[];
+}
+
+export interface PlayInsights {
+  totalPlayers: number;
+  numberOfCourts: number;
+  completedGames: number;
+  playerAppearances: number;
+  recordedRallies: number | null;
+  taggedRallies: number | null;
+  players: {
+    playerId: string;
+    displayName: string;
+    gamesPlayed: number;
+    wins: number;
+    losses: number;
+    distinctTeammates: number;
+    distinctOpponents: number;
+  }[];
 }
 
 export interface PlayMatchSummary {

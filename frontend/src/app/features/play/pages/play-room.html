@@ -188,6 +188,13 @@
             >
               Match History
             </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="view() === 'insights'"
+              (click)="view.set('insights')"
+            >
+              Insights
+            </button>
           </nav>
           @if (view() === 'courts') {
             <app-play-courts
@@ -200,6 +207,8 @@
               (correction)="correctScore($event)"
               [correctionSaved]="correctionSaved()"
             />
+          } @else if (view() === 'insights') {
+            <app-play-insights [insights]="room.insights" />
           } @else if (view() === 'history') {
             <h2>Match History</h2>
             <p class="muted">

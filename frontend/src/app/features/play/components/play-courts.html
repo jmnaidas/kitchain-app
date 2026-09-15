@@ -14,11 +14,7 @@
     @if (court.match; as match) {
       @if (match.status === 'Completed') {
         <p class="result" role="status">
-          {{
-            session().mode === 'LiveScoring' && match.winner
-              ? 'Team ' + match.winner + ' wins'
-              : 'Game complete'
-          }}
+          {{ match.winner ? 'Team ' + match.winner + ' wins' : 'Game complete' }}
         </p>
       }
       <div class="teams">
@@ -92,13 +88,38 @@
               role="group"
               [attr.aria-label]="'Finish game on Court ' + court.number"
             >
-              <p>
-                Finish this game? Its result and players stay on this court until you confirm the
-                next lineup.
-              </p>
-              <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
-                Confirm Finish
-              </button>
+              @if (session().mode === 'QueueOnly') {
+                <p>Who won this game?</p>
+                <p>
+                  Team A:
+                  @for (player of court.teamA; track player.playerId; let last = $last) {
+                    {{ player.displayName }}{{ last ? '' : ' + ' }}
+                  }
+                </p>
+                <p>
+                  Team B:
+                  @for (player of court.teamB; track player.playerId; let last = $last) {
+                    {{ player.displayName }}{{ last ? '' : ' + ' }}
+                  }
+                </p>
+                <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'A')">
+                  Team A won
+                </button>
+                <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'B')">
+                  Team B won
+                </button>
+                <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
+                  Finish without result
+                </button>
+              } @else {
+                <p>
+                  Finish this game? Its result and players stay on this court until you confirm the
+                  next lineup.
+                </p>
+                <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
+                  Confirm Finish
+                </button>
+              }
               <button type="button" [disabled]="disabled()" (click)="confirming.set(null)">
                 Cancel
               </button>

@@ -28,6 +28,12 @@ public sealed record StartNextPlayGame
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record FinishPlayGame
+{
+    public PlayTeam? Winner { get; init; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record RecordPlayRally
 {
     // Each accepted POST is one rally. Without an idempotency key, identical HTTP
@@ -70,7 +76,7 @@ public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, Da
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<PlayPlayerDetail> Players,
     IReadOnlyList<PlayPlayerDetail> WaitingQueue, IReadOnlyList<PlayMatchDetail> ActiveMatches,
     PlaySessionMode Mode, IReadOnlyList<PlayMatchDetail> CurrentMatches, DateOnly EndDate,
-    IReadOnlyList<PlayMatchSummary> MatchHistory);
+    IReadOnlyList<PlayMatchSummary> MatchHistory, PlayInsights Insights);
 
 public interface IPlayJoinCodeGenerator
 {
@@ -147,8 +153,8 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> StartAsync(string code, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.Start(Now(s)), cancellationToken);
 
-    public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken) =>
-        UpdateAsync(code, s => s.FinishGame(matchId, Now(s)), cancellationToken);
+    public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken, PlayTeam? winner = null) =>
+        UpdateAsync(code, s => s.FinishGame(matchId, Now(s), winner), cancellationToken);
 
     public Task<PlaySessionDetail?> RecordRallyAsync(string code, Guid matchId, RecordPlayRally input, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.RecordRally(matchId,
@@ -201,7 +207,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
         var history = session.Matches.Where(m => m.Status == PlayMatchStatus.Completed)
             .OrderByDescending(m => m.CompletedAt).ThenByDescending(m => m.StartedAt).ThenByDescending(m => m.Id)
             .Select(m => new PlayMatchSummary(m.Id, m.CourtNumber, Participants(m), m.StartedAt, m.CompletedAt,
-                scoring ? m.TeamAScore : null, scoring ? m.TeamBScore : null, scoring ? m.Winner : null,
+                scoring ? m.TeamAScore : null, scoring ? m.TeamBScore : null, m.Winner,
                 scoring ? m.Rallies.Count : null, scoring ? m.Rallies.Count(r => r.CallOut.HasValue) : null,
                 scoring ? m.Rallies.Where(r => r.CallOut.HasValue).GroupBy(r => r.CallOut!.Value)
                     .OrderBy(g => g.Key).Select(g => new PlayCallOutCount(g.Key, g.Count())).ToArray() : [],
@@ -212,6 +218,6 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
             session.GameTo, session.WinBy, session.CreatedAt, session.UpdatedAt,
             session.Players.OrderBy(p => p.JoinedAt).ThenBy(p => p.Id).Select(Player).ToArray(),
             session.WaitingQueue.Select(Player).ToArray(), current.Where(m => m.Status == PlayMatchStatus.Active).ToArray(),
-            session.Mode, current, session.EndDate, history);
+            session.Mode, current, session.EndDate, history, PlayInsights.From(session, history));
     }
 }

@@ -1,0 +1,65 @@
+<section aria-labelledby="insights-summary-title">
+  <h2 id="insights-summary-title">Session Summary</h2>
+  <p class="summary">
+    {{ insights().totalPlayers }} players · {{ insights().numberOfCourts }} courts ·
+    {{ insights().completedGames }} games completed
+  </p>
+  <p>
+    {{ insights().playerAppearances }} player appearances
+    @if (insights().recordedRallies !== null) {
+      · {{ insights().recordedRallies }} recorded rallies · {{ insights().taggedRallies }} tagged
+      rallies
+    }
+  </p>
+  <p class="note">
+    Participation and rally totals include completed games only. One appearance means one player in
+    one completed game.
+  </p>
+  @if (insights().recordedRallies === null) {
+    <p class="note">
+      Queue Only · Score and rallies were not tracked. Wins and losses include recorded winners
+      only; games without a result count as played.
+    </p>
+  } @else {
+    <p class="note">
+      Wins and losses include recorded winners only. Games finished without a winner still count as
+      played. Unrecorded rallies are not included.
+    </p>
+  }
+</section>
+<section aria-labelledby="player-insights-title">
+  <h2 id="player-insights-title">Player Insights</h2>
+  @if (insights().players.length) {
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable player insights">
+      <table>
+        <caption>
+          Session participation · most games first, then wins and name
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Player</th>
+            <th scope="col">Games</th>
+            <th scope="col">Wins</th>
+            <th scope="col">Losses</th>
+            <th scope="col">Distinct teammates</th>
+            <th scope="col">Distinct opponents</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (player of insights().players; track player.playerId) {
+            <tr>
+              <th scope="row">{{ player.displayName }}</th>
+              <td>{{ player.gamesPlayed }}</td>
+              <td>{{ player.wins }}</td>
+              <td>{{ player.losses }}</td>
+              <td>{{ player.distinctTeammates }}</td>
+              <td>{{ player.distinctOpponents }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p>No players in this session yet.</p>
+  }
+</section>

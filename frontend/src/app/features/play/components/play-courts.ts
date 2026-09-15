@@ -30,7 +30,7 @@ import { PlayRallyHistory } from './play-rally-history';
 export class PlayCourts {
   readonly session = input.required<PlaySession>();
   readonly disabled = input(false);
-  readonly finish = output<string>();
+  readonly finish = output<{ matchId: string; winner: PlayTeam | null }>();
   readonly startNext = output<{ matchId: string; lineup: NextPlayGame }>();
   readonly rally = output<{ matchId: string; winner: PlayTeam }>();
   readonly callOut = output<PlayCallOutChange>();
@@ -68,9 +68,9 @@ export class PlayCourts {
     );
   });
 
-  protected confirm(id: string) {
+  protected confirm(id: string, winner: PlayTeam | null = null) {
     if (this.disabled() || this.session().status !== 'Active') return;
     this.confirming.set(null);
-    this.finish.emit(id);
+    this.finish.emit({ matchId: id, winner });
   }
 }

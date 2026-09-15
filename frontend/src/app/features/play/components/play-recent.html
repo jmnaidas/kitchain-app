@@ -8,41 +8,48 @@
     @if (loading()) {
       <p role="status">Finding your recent sessions…</p>
     }
-    @for (session of sessions(); track session.joinCode) {
-      <article>
-        <div>
-          <h3>{{ session.name }}</h3>
-          <p>
-            {{ session.status }} · {{ session.sessionDate | date: 'MMM d, y' }} ·
-            {{ session.sessionDate + 'T' + session.startTime | date: 'shortTime' }} –
-            @if (session.endDate !== session.sessionDate) {
-              {{ session.endDate | date: 'MMM d, y' }}
-            }
-            {{ session.endDate + 'T' + session.endTime | date: 'shortTime' }}
-          </p>
-          <p>
-            {{ session.players.length }} {{ session.players.length === 1 ? 'player' : 'players' }} ·
-            {{ session.numberOfCourts }} {{ session.numberOfCourts === 1 ? 'court' : 'courts' }} ·
-            <code>{{ session.joinCode }}</code>
-          </p>
-        </div>
-        <a
-          [routerLink]="['/play/s', session.joinCode]"
-          [attr.aria-label]="
-            (session.status === 'Ended' ? 'View details for ' : 'Resume ') + session.name
-          "
-        >
-          {{ session.status === 'Ended' ? 'View details →' : 'Resume →' }}
-        </a>
-        <button
-          type="button"
-          (click)="forget(session.joinCode)"
-          [attr.aria-label]="'Remove ' + session.name + ' from this device'"
-        >
-          Remove from this device
-        </button>
-      </article>
-    }
+    <div class="recent-list">
+      @for (session of sessions(); track session.joinCode) {
+        <article>
+          <div class="session-details">
+            <h3>{{ session.name }}</h3>
+            <p>
+              {{ session.status }} · {{ session.sessionDate | date: 'MMM d, y' }} ·
+              {{ session.sessionDate + 'T' + session.startTime | date: 'shortTime' }} –
+              @if (session.endDate !== session.sessionDate) {
+                {{ session.endDate | date: 'MMM d, y' }}
+              }
+              {{ session.endDate + 'T' + session.endTime | date: 'shortTime' }}
+            </p>
+            <p>
+              {{ session.players.length }}
+              {{ session.players.length === 1 ? 'player' : 'players' }} ·
+              {{ session.numberOfCourts }} {{ session.numberOfCourts === 1 ? 'court' : 'courts' }} ·
+              <code>{{ session.joinCode }}</code>
+            </p>
+          </div>
+          <div class="session-actions">
+            <a
+              class="session-action"
+              [routerLink]="['/play/s', session.joinCode]"
+              [attr.aria-label]="
+                (session.status === 'Ended' ? 'View details for ' : 'Resume ') + session.name
+              "
+            >
+              {{ session.status === 'Ended' ? 'View details →' : 'Resume →' }}
+            </a>
+            <button
+              class="device-action"
+              type="button"
+              (click)="forget(session.joinCode)"
+              [attr.aria-label]="'Remove ' + session.name + ' from this device'"
+            >
+              Remove
+            </button>
+          </div>
+        </article>
+      }
+    </div>
     @if (failed()) {
       <p role="status">Some recent sessions couldn’t be loaded. Your codes are still saved.</p>
       <button type="button" [disabled]="loading()" (click)="load()">Try again</button>

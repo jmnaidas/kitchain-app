@@ -133,13 +133,17 @@ public sealed class PlaySession
         FillFreeCourts(now);
     }
 
-    public void FinishGame(Guid matchId, DateTimeOffset now)
+    public void FinishGame(Guid matchId, DateTimeOffset now, PlayTeam? winner = null)
     {
         EnsureOpen(now);
         if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can finish a game.");
         var match = _matches.SingleOrDefault(m => m.Id == matchId && m.Status == PlayMatchStatus.Active)
             ?? throw new PlayConflictException("This game is no longer active.");
-        match.Complete(now);
+        if (winner.HasValue && !Enum.IsDefined(winner.Value))
+            throw new ArgumentException("Choose winning team A or B.", nameof(winner));
+        if (winner.HasValue && Mode != PlaySessionMode.QueueOnly)
+            throw new PlayConflictException("Only Queue Only games can record a result when finishing manually.");
+        match.Complete(now, winner);
         UpdatedAt = now.ToUniversalTime();
     }
 

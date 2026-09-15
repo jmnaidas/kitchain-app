@@ -33,6 +33,30 @@ public sealed class PlayRallyApiTests(PostgresCourtFixture fixture) : IClassFixt
     }
 
     [PostgresFact]
+    public async Task Queue_only_finish_result_round_trips_through_the_existing_endpoint()
+    {
+        foreach (var winner in new PlayTeam?[] { PlayTeam.A, PlayTeam.B, null })
+        {
+            var session = await Start(PlaySessionMode.QueueOnly);
+            var url = $"{Route}/{session.JoinCode}";
+            var match = Assert.Single(session.CurrentMatches);
+            using var response = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/finish",
+                new FinishPlayGame { Winner = winner }, Json);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+            var history = Assert.Single(saved.MatchHistory);
+            Assert.Equal(winner, history.Winner);
+            Assert.Null(history.TeamAScore);
+            Assert.Null(history.TeamBScore);
+            Assert.Empty(history.Rallies);
+            Assert.Null(saved.Insights.RecordedRallies);
+            Assert.Equal(4, saved.Insights.PlayerAppearances);
+            Assert.Equal(winner.HasValue ? 2 : 0, saved.Insights.Players.Sum(p => p.Wins));
+            Assert.Equal(winner.HasValue ? 2 : 0, saved.Insights.Players.Sum(p => p.Losses));
+        }
+    }
+
+    [PostgresFact]
     public async Task Rally_snapshots_and_metadata_round_trip_while_corrections_and_next_game_preserve_history()
     {
         var session = await Start();
@@ -114,6 +138,12 @@ public sealed class PlayRallyApiTests(PostgresCourtFixture fixture) : IClassFixt
         Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
         var reloaded = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         Assert.Equal(PlaySessionStatus.Ended, reloaded.Status);
+        Assert.Equal(1, reloaded.Insights.CompletedGames);
+        Assert.Equal(4, reloaded.Insights.PlayerAppearances);
+        Assert.Equal(2, reloaded.Insights.RecordedRallies);
+        Assert.Equal(1, reloaded.Insights.TaggedRallies);
+        Assert.Equal(2, reloaded.Insights.Players.Sum(p => p.Wins));
+        Assert.Equal(2, reloaded.Insights.Players.Sum(p => p.Losses));
         Assert.Equal(summary.Rallies, Assert.Single(reloaded.MatchHistory).Rallies);
         using var endedTag = await fixture.Client.PatchAsJsonAsync(tagUrl, new EditPlayRallyCallOut { CallOut = PlayRallyCallOut.Out }, Json);
         Assert.Equal(HttpStatusCode.Conflict, endedTag.StatusCode);

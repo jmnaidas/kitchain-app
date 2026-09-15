@@ -1,0 +1,52 @@
+:host {
+  display: block;
+}
+section + section {
+  margin-top: 1.75rem;
+}
+h2 {
+  font: 400 1.7rem var(--font-display);
+}
+.summary {
+  font-weight: 600;
+}
+.note,
+caption {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.table-scroll:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+caption {
+  text-align: left;
+  padding-block: 0.5rem;
+}
+th,
+td {
+  padding: 0.75rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+th:first-child {
+  text-align: left;
+  min-width: 8rem;
+  overflow-wrap: anywhere;
+}
+thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+tbody th {
+  font-weight: 500;
+}

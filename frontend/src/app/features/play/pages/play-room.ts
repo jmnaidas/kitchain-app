@@ -20,6 +20,7 @@ import { PlayPlayerList, PlayerStateChange } from '../components/play-player-lis
 import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
 import { PlayMatchSummary } from '../components/play-match-summary';
+import { PlayInsights } from '../components/play-insights';
 import { PlaySessionForm } from '../components/play-session-form';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayApi } from '../data-access/play-api';
@@ -46,6 +47,7 @@ import {
     PlayCourts,
     PlaySessionForm,
     PlayMatchSummary,
+    PlayInsights,
   ],
   templateUrl: './play-room.html',
   styleUrl: './play-room.scss',
@@ -92,7 +94,9 @@ export class PlayRoom {
   protected readonly shareFallback = signal('');
   protected readonly guestName = signal('');
   protected readonly nameError = signal('');
-  protected readonly view = signal<'courts' | 'queue' | 'players' | 'history'>('queue');
+  protected readonly view = signal<'courts' | 'queue' | 'players' | 'history' | 'insights'>(
+    'queue',
+  );
   protected readonly playerCourts = computed(() =>
     Object.fromEntries(
       (this.session()?.currentMatches ?? []).flatMap((match) =>
@@ -321,11 +325,11 @@ export class PlayRoom {
       'Next game started. Courts and queue are up to date.',
     );
   }
-  protected finishGame(matchId: string) {
+  protected finishGame({ matchId, winner }: { matchId: string; winner: PlayTeam | null }) {
     if (this.session()?.status !== 'Active') return;
     this.change(
       `finish:${matchId}`,
-      this.api.finish(this.code, matchId),
+      this.api.finish(this.code, matchId, winner),
       'Game complete. Review the next lineup when ready.',
     );
   }

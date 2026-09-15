@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import {
   PlayMatchSummary as MatchSummary,
   PlayRallyCallOut,
@@ -17,6 +17,13 @@ import { PlayRallyHistory } from './play-rally-history';
 export class PlayMatchSummary {
   readonly match = input.required<MatchSummary>();
   protected readonly expanded = signal(false);
+  protected readonly sameDay = computed(() => {
+    const match = this.match();
+    return (
+      match.completedAt !== null &&
+      new Date(match.startedAt).toDateString() === new Date(match.completedAt).toDateString()
+    );
+  });
   protected teamNames(team: PlayTeam) {
     return this.match()
       .players.filter((p) => p.team === team)

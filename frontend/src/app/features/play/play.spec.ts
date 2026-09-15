@@ -44,6 +44,23 @@ const room = (
   players: PlayPlayer[] = [],
   waitingQueue = players.filter((p) => p.state === 'Waiting'),
 ): PlaySession => ({
+  insights: {
+    totalPlayers: players.length,
+    numberOfCourts: 2,
+    completedGames: 0,
+    playerAppearances: 0,
+    recordedRallies: null,
+    taggedRallies: null,
+    players: players.map((p) => ({
+      playerId: p.id,
+      displayName: p.displayName,
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      distinctTeammates: 0,
+      distinctOpponents: 0,
+    })),
+  },
   id: 'session-id',
   joinCode: code,
   name: 'Evening crew',
@@ -882,7 +899,11 @@ describe('Play experience', () => {
     expect(cards[1].querySelector('[aria-label="Call-out counts"]')?.textContent).toContain(
       'Drive 2',
     );
-    expect(cards[1].textContent).toContain('historic-match');
+    expect(cards[1].textContent).not.toContain('historic-match');
+    expect(cards[1].textContent).not.toContain('Match ID');
+    expect(cards[1].querySelector('article')?.getAttribute('aria-label')).not.toContain(
+      'historic-match',
+    );
     expect(cards[1].textContent).toContain('Started');
     expect(cards[1].textContent).toContain('Finished');
     click('View rally history');
@@ -932,15 +953,15 @@ describe('Play experience', () => {
     http.expectOne(`${base}/${code}/matches/scored-match/next`).flush(next);
     await settle();
     click('Match History');
-    expect(element.querySelector('app-play-match-summary')?.textContent).toContain('scored-match');
+    expect(element.querySelector('app-play-match-summary')?.textContent).toContain('Team A won');
     liveEvents.next({ kind: 'changed' });
     TestBed.tick();
     http
       .expectOne(`${base}/${code}`)
-      .flush({ ...next, matchHistory: [summary({ id: 'new-completed' }), saved] });
+      .flush({ ...next, matchHistory: [summary({ id: 'new-completed', courtNumber: 2 }), saved] });
     await settle();
     expect(element.querySelectorAll('app-play-match-summary')).toHaveLength(2);
-    expect(element.querySelector('app-play-match-summary')?.textContent).toContain('new-completed');
+    expect(element.querySelector('app-play-match-summary h3')?.textContent).toBe('Court 2');
   });
 
   it('keeps no-completed-match history honest and clearly separates call-outs and their editor', async () => {
@@ -956,6 +977,152 @@ describe('Play experience', () => {
     expect(editor.querySelector('button')?.textContent).toContain('Close call-out editor');
     expect(button('Team A won rally').disabled).toBe(false);
     http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('shows canonical session-scoped Insights with ordered players and no shot attribution in Ended sessions', async () => {
+    const state = scoredRoom();
+    state.status = 'Ended';
+    state.insights = {
+      totalPlayers: 8,
+      numberOfCourts: 2,
+      completedGames: 3,
+      playerAppearances: 12,
+      recordedRallies: 28,
+      taggedRallies: 7,
+      players: [
+        {
+          playerId: 'b',
+          displayName: 'Blair',
+          gamesPlayed: 3,
+          wins: 2,
+          losses: 0,
+          distinctTeammates: 2,
+          distinctOpponents: 4,
+        },
+        {
+          playerId: 'a',
+          displayName: 'Alex',
+          gamesPlayed: 2,
+          wins: 0,
+          losses: 1,
+          distinctTeammates: 1,
+          distinctOpponents: 3,
+        },
+      ],
+    };
+    await openRoom(state);
+    click('Insights');
+    const insights = element.querySelector('app-play-insights')!;
+    const text = insights.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('8 players · 2 courts · 3 games completed');
+    expect(text).toContain('12 player appearances');
+    expect(text).toContain('28 recorded rallies · 7 tagged rallies');
+    expect(text).toContain('recorded winners only');
+    expect(Array.from(insights.querySelectorAll('thead th'), (node) => node.textContent)).toContain(
+      'Wins',
+    );
+    expect(Array.from(insights.querySelectorAll('thead th'), (node) => node.textContent)).toContain(
+      'Losses',
+    );
+    expect(insights.querySelector('abbr')).toBeNull();
+    expect(Array.from(insights.querySelectorAll('tbody th'), (node) => node.textContent)).toEqual([
+      'Blair',
+      'Alex',
+    ]);
+    expect(
+      Array.from(insights.querySelectorAll('tbody tr:first-child td'), (node) => node.textContent),
+    ).toEqual(['3', '2', '0', '2', '4']);
+    expect(insights.querySelector('.table-scroll')?.getAttribute('tabindex')).toBe('0');
+    expect(insights.querySelector('button, input, select')).toBeNull();
+    expect(text).not.toContain('Drive');
+    expect(text).not.toContain('Dink');
+    http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('clearly distinguishes Queue Only participation from unavailable scoring insights', async () => {
+    const state = room(crew);
+    state.insights = { ...state.insights, completedGames: 1, playerAppearances: 4 };
+    await openRoom({ ...state, status: 'Ended' });
+    click('Insights');
+    const insights = element.querySelector('app-play-insights')!;
+    expect(insights.textContent).toContain('4 player appearances');
+    expect(insights.textContent).toContain('Score and rallies were not tracked');
+    expect(insights.textContent).not.toContain('0 recorded rallies');
+    expect(insights.querySelectorAll('tbody tr')).toHaveLength(5);
+    http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('updates Insights from the existing live canonical session response without another data channel', async () => {
+    const state = scoredRoom();
+    state.insights = { ...state.insights, recordedRallies: 0, taggedRallies: 0 };
+    await openRoom(state);
+    click('Insights');
+    expect(element.querySelector('app-play-insights')?.textContent).toContain('0 games completed');
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    http.expectOne(`${base}/${code}`).flush({
+      ...state,
+      insights: {
+        ...state.insights,
+        completedGames: 1,
+        playerAppearances: 4,
+        recordedRallies: 9,
+        taggedRallies: 2,
+      },
+    });
+    await settle();
+    expect(element.querySelector('app-play-insights')?.textContent).toContain('1 games completed');
+    expect(element.querySelector('app-play-insights')?.textContent).toContain('9 recorded rallies');
+    http.expectNone((request) => request.url.includes('insights'));
+  });
+
+  it('uses identical recent-session action slots for Resume and View details', async () => {
+    const recent = TestBed.inject(RecentPlaySessions);
+    recent.remember(code);
+    recent.remember('GHJKLM');
+    await navigate('/play');
+    http.expectOne(`${base}/${code}`).flush({ ...room(), status: 'Active' });
+    http
+      .expectOne(`${base}/GHJKLM`)
+      .flush({ ...room(), joinCode: 'GHJKLM', name: 'Finished crew', status: 'Ended' });
+    await settle();
+    const rows = element.querySelectorAll('app-play-recent .recent-list > article');
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(Array.from(row.children, (child) => child.className)).toEqual([
+        'session-details',
+        'session-actions',
+      ]);
+      expect(row.querySelector('a.session-action')?.getAttribute('href')).toContain('/play/s/');
+      expect(row.querySelector('button.device-action')?.textContent?.trim()).toBe('Remove');
+      expect(row.querySelector('button.device-action')?.getAttribute('aria-label')).toContain(
+        'from this device',
+      );
+      expect(row.querySelector('.session-actions')?.children).toHaveLength(2);
+    }
+    const labels = Array.from(element.querySelectorAll('app-play-recent .session-action'), (node) =>
+      node.textContent?.trim(),
+    );
+    expect(labels).toContain('Resume →');
+    expect(labels).toContain('View details →');
+    http.expectNone((request) => request.method !== 'GET');
+  });
+
+  it('uses short readable match times without losing overnight dates or revealing technical IDs', async () => {
+    const game = summary({
+      id: 'private-technical-match-id',
+      startedAt: '2026-09-14T23:00:00',
+      completedAt: '2026-09-15T02:00:00',
+    });
+    await openRoom({ ...scoredRoom(), status: 'Ended', matchHistory: [game] });
+    click('Match History');
+    const card = element.querySelector('app-play-match-summary')!;
+    expect(card.textContent).not.toContain(game.id);
+    expect(card.textContent).not.toContain('Match ID');
+    expect(card.querySelector('.timing')?.textContent).toContain('Sep 14, 2026');
+    expect(card.querySelector('.timing')?.textContent).toContain('Sep 15, 2026');
+    expect(card.querySelector('.timing')?.textContent).not.toContain(':00:00');
+    expect(card.querySelector('.final-score')?.textContent).toContain('A 11–8 B');
   });
 
   function completedRoom(state: PlaySession, winner: 'A' | 'B' | null = null): PlaySession {
@@ -1436,14 +1603,56 @@ describe('Play experience', () => {
     expect(element.querySelector('app-play-next-game')).toBeNull();
     http.expectNone((request) => request.method !== 'GET');
   });
+  for (const winner of ['A', 'B'] as const) {
+    it(`captures Queue Only Team ${winner} result after a cancellable chooser`, async () => {
+      const active = { ...scoredRoom(), mode: 'QueueOnly' as const };
+      await openRoom(active);
+      click('Courts');
+      click('Finish game on Court 1');
+      expect(element.textContent).toContain('Who won this game?');
+      expect(element.querySelector('.confirmation')?.textContent).toContain('Alex');
+      expect(element.querySelector('.confirmation input')).toBeNull();
+      click('Cancel');
+      expect(element.querySelector('.confirmation')).toBeNull();
+      http.expectNone((request) => request.method !== 'GET');
+      click('Finish game on Court 1');
+      click(`Team ${winner} won`);
+      const request = http.expectOne(`${base}/${code}/matches/scored-match/finish`);
+      expect(request.request.body).toEqual({ winner });
+      request.flush({
+        ...completedRoom(active, winner),
+        matchHistory: [
+          summary({
+            winner,
+            teamAScore: null,
+            teamBScore: null,
+            totalRallies: null,
+            taggedRallies: null,
+            rallies: [],
+            callOutCounts: [],
+          }),
+        ],
+      });
+      await settle();
+      expect(element.textContent).toContain(`Team ${winner} wins`);
+      expect(element.querySelector('.score')).toBeNull();
+      click('Match History');
+      expect(element.textContent).toContain(`Team ${winner} won`);
+      expect(element.querySelector('.final-score')).toBeNull();
+      expect(element.textContent).toContain('Queue Only · Score and rallies were not tracked.');
+    });
+  }
+
   it('finishes Queue Only without scores or an invented winner and holds the current players', async () => {
     const active = { ...scoredRoom(), mode: 'QueueOnly' as const };
     await openRoom(active);
     click('Courts');
     expect(button('Finish game on Court 1').textContent?.trim()).toBe('Finish Game');
     click('Finish game on Court 1');
-    click('Confirm Finish');
-    http.expectOne(`${base}/${code}/matches/scored-match/finish`).flush(completedRoom(active));
+    click('Finish without result');
+    const request = http.expectOne(`${base}/${code}/matches/scored-match/finish`);
+    expect(request.request.body).toEqual({ winner: null });
+    request.flush(completedRoom(active));
     await settle();
     expect(element.textContent).toContain('Game complete');
     expect(element.textContent).not.toContain('wins');

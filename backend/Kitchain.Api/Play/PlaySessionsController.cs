@@ -60,8 +60,9 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
         SessionResult(() => sessions.StartAsync(code, cancellationToken));
 
     [HttpPost("{code}/matches/{matchId:guid}/finish")]
-    public Task<ActionResult<PlaySessionDetail>> FinishGame(string code, Guid matchId, CancellationToken cancellationToken) =>
-        SessionResult(() => sessions.FinishGameAsync(code, matchId, cancellationToken));
+    public Task<ActionResult<PlaySessionDetail>> FinishGame(string code, Guid matchId, CancellationToken cancellationToken,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] FinishPlayGame? input = null) =>
+        SessionResult(() => sessions.FinishGameAsync(code, matchId, cancellationToken, input?.Winner));
 
     [HttpPatch("{code}/matches/{matchId:guid}/rallies/{rallyId:guid}/call-out")]
     [RequestSizeLimit(2048)]
