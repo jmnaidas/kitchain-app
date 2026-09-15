@@ -22,6 +22,13 @@ export class PlayRecent {
   protected readonly sessions = signal<PlaySession[]>([]);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
+  protected readonly removed = signal('');
+
+  protected forget(code: string) {
+    this.recent.remove(code);
+    this.sessions.update((sessions) => sessions.filter((session) => session.joinCode !== code));
+    this.removed.set('Removed from this device. The session remains available to the group.');
+  }
 
   constructor() {
     this.load();
@@ -46,7 +53,13 @@ export class PlayRecent {
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((sessions) => {
-        this.sessions.set(sessions.filter((session): session is PlaySession => session !== null));
+        const remembered = new Set(this.recent.list().map((entry) => entry.code));
+        this.sessions.set(
+          sessions.filter(
+            (session): session is PlaySession =>
+              session !== null && remembered.has(session.joinCode),
+          ),
+        );
         this.loading.set(false);
       });
   }

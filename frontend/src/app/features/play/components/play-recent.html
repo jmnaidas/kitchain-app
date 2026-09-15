@@ -1,7 +1,10 @@
-@if (loading() || sessions().length || failed()) {
+@if (loading() || sessions().length || failed() || removed()) {
   <section aria-labelledby="recent-title" [attr.aria-busy]="loading()">
     <p class="eyebrow">Recent sessions / This device</p>
     <h2 id="recent-title">Continue playing.</h2>
+    @if (removed()) {
+      <p role="status">{{ removed() }}</p>
+    }
     @if (loading()) {
       <p role="status">Finding your recent sessions…</p>
     }
@@ -12,7 +15,10 @@
           <p>
             {{ session.status }} · {{ session.sessionDate | date: 'MMM d, y' }} ·
             {{ session.sessionDate + 'T' + session.startTime | date: 'shortTime' }} –
-            {{ session.sessionDate + 'T' + session.endTime | date: 'shortTime' }}
+            @if (session.endDate !== session.sessionDate) {
+              {{ session.endDate | date: 'MMM d, y' }}
+            }
+            {{ session.endDate + 'T' + session.endTime | date: 'shortTime' }}
           </p>
           <p>
             {{ session.players.length }} {{ session.players.length === 1 ? 'player' : 'players' }} ·
@@ -20,9 +26,21 @@
             <code>{{ session.joinCode }}</code>
           </p>
         </div>
-        <a [routerLink]="['/play/s', session.joinCode]" [attr.aria-label]="'Resume ' + session.name"
-          >Resume →</a
+        <a
+          [routerLink]="['/play/s', session.joinCode]"
+          [attr.aria-label]="
+            (session.status === 'Ended' ? 'View details for ' : 'Resume ') + session.name
+          "
         >
+          {{ session.status === 'Ended' ? 'View details →' : 'Resume →' }}
+        </a>
+        <button
+          type="button"
+          (click)="forget(session.joinCode)"
+          [attr.aria-label]="'Remove ' + session.name + ' from this device'"
+        >
+          Remove from this device
+        </button>
       </article>
     }
     @if (failed()) {

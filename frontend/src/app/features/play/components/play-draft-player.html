@@ -1,0 +1,43 @@
+@if (action() === 'edit') {
+  <form (submit)="save($event)" novalidate [attr.aria-label]="'Edit ' + player().displayName">
+    <label
+      >Player name<input
+        name="displayName"
+        [value]="name()"
+        (input)="inputName($event)"
+        maxlength="80"
+        required
+        [disabled]="disabled()"
+    /></label>
+    @if (error()) {
+      <p role="alert">{{ error() }}</p>
+    }
+    <button type="submit" [disabled]="disabled()">Save</button>
+    <button type="button" (click)="action.set(null)">Cancel</button>
+  </form>
+} @else if (action() === 'remove') {
+  <div role="group" [attr.aria-label]="'Remove ' + player().displayName + '?'">
+    <p>Remove {{ player().displayName }}?</p>
+    <button type="button" (click)="action.set(null)">Cancel</button>
+    <button type="button" [disabled]="disabled()" (click)="remove()">Remove</button>
+  </div>
+} @else {
+  <button
+    type="button"
+    [disabled]="disabled()"
+    class="roster-action"
+    (click)="edit()"
+    [attr.aria-label]="'Edit ' + player().displayName"
+  >
+    Edit
+  </button>
+  <button
+    type="button"
+    [disabled]="disabled()"
+    class="roster-action"
+    (click)="action.set('remove')"
+    [attr.aria-label]="'Remove ' + player().displayName"
+  >
+    Remove
+  </button>
+}

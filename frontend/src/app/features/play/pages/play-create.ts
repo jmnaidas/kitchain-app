@@ -4,12 +4,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { PlayApi } from '../data-access/play-api';
 import { playIssue } from '../data-access/play-errors';
-import { localDate } from '../data-access/play.models';
+import { CreatePlaySession } from '../data-access/play.models';
+import { PlaySessionForm } from '../components/play-session-form';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 
 @Component({
   selector: 'app-play-create',
-  imports: [RouterLink],
+  imports: [RouterLink, PlaySessionForm],
   templateUrl: './play-create.html',
   styleUrl: './play-form.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,52 +20,17 @@ export class PlayCreate {
   private readonly recent = inject(RecentPlaySessions);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  protected readonly today = localDate();
   protected readonly busy = signal(false);
   protected readonly errors = signal<Record<string, string>>({});
   protected readonly problem = signal('');
   protected readonly createdCode = signal('');
 
-  protected validate(event: Event) {
-    const field = event.target as HTMLInputElement;
-    this.validateField(field);
-  }
-  private validateField(field: HTMLInputElement) {
-    field.setCustomValidity('');
-    if (field.required && !field.value.trim()) field.setCustomValidity('This field is required.');
-    this.errors.update((errors) => ({ ...errors, [field.name]: field.validationMessage }));
-  }
-  protected submit(event: Event) {
-    event.preventDefault();
+  protected create(input: CreatePlaySession) {
     if (this.busy() || this.createdCode()) return;
-    const form = event.target as HTMLFormElement;
-    const fields = Array.from(form.querySelectorAll('input'));
-    this.errors.set({});
-    this.problem.set('');
-    fields.forEach((field) => this.validateField(field));
-    const values = new FormData(form);
-    const text = (name: string) => String(values.get(name) ?? '').trim();
-    if (text('startTime') && text('endTime') && text('endTime') <= text('startTime')) {
-      this.errors.update((errors) => ({
-        ...errors,
-        endTime: 'End time must be after start time on the same day.',
-      }));
-    }
-    if (Object.values(this.errors()).some(Boolean)) {
-      fields.find((field) => this.errors()[field.name])?.focus();
-      return;
-    }
-    const time = (name: string) => (text(name).length === 5 ? `${text(name)}:00` : text(name));
     this.busy.set(true);
+    this.problem.set('');
     this.api
-      .create({
-        name: text('name'),
-        date: text('date'),
-        startTime: time('startTime'),
-        endTime: time('endTime'),
-        numberOfCourts: Number(text('numberOfCourts')),
-        maximumPlayers: text('maximumPlayers') ? Number(text('maximumPlayers')) : null,
-      })
+      .create(input)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (session) => {

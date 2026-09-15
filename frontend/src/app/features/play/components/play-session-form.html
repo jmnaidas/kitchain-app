@@ -1,0 +1,165 @@
+<form
+  [attr.aria-label]="initial() ? 'Edit session details' : 'Create session'"
+  novalidate
+  (submit)="submit($event)"
+  [attr.aria-busy]="disabled()"
+>
+  <fieldset [disabled]="disabled()">
+    <legend class="sr-only">Session details</legend>
+    <p class="muted">All fields are required unless marked optional.</p>
+    <fieldset class="session-mode">
+      <legend>Session mode</legend>
+      <label
+        ><input
+          type="radio"
+          name="mode"
+          value="QueueOnly"
+          [checked]="mode() === 'QueueOnly'"
+          (change)="mode.set('QueueOnly')"
+        />
+        Queue Only
+        <span>Manage player rotation and courts. Players keep score themselves.</span></label
+      >
+      <label
+        ><input
+          type="radio"
+          name="mode"
+          value="LiveScoring"
+          [checked]="mode() === 'LiveScoring'"
+          (change)="mode.set('LiveScoring')"
+        />
+        Queue + Live Scoring
+        <span>Track scores, serving team, server and match results in Kitchain.</span></label
+      >
+    </fieldset>
+    <div class="field">
+      <label for="session-name">Session name</label>
+      <input
+        id="session-name"
+        name="name"
+        [value]="initial()?.name ?? 'Pickleball Session'"
+        required
+        maxlength="200"
+        autocomplete="off"
+        [attr.aria-invalid]="!!errors()['name']"
+        aria-describedby="name-help"
+        (blur)="validate($event)"
+      />
+      <p class="help error" id="name-help">{{ errors()['name'] }}</p>
+    </div>
+    <div class="field">
+      <label for="session-date">Start date</label>
+      <input
+        id="session-date"
+        type="date"
+        name="date"
+        [value]="initial()?.sessionDate ?? today"
+        (input)="startDateChanged($event)"
+        required
+        min="0001-01-02"
+        max="9999-12-31"
+        [attr.aria-invalid]="!!errors()['date']"
+        aria-describedby="date-help"
+        (blur)="validate($event)"
+      />
+      <p class="help error" id="date-help">{{ errors()['date'] }}</p>
+    </div>
+    <div class="field">
+      <label for="end-date">End date</label>
+      <input
+        id="end-date"
+        name="endDate"
+        type="date"
+        required
+        min="0001-01-02"
+        max="9999-12-31"
+        [value]="endDate()"
+        (input)="endDateChanged($event)"
+        (blur)="validate($event)"
+        [attr.aria-invalid]="!!errors()['endDate']"
+        aria-describedby="end-date-help"
+      />
+      <p id="end-date-help" class="help error">{{ errors()['endDate'] }}</p>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label for="start-time">Start time</label>
+        <input
+          id="start-time"
+          name="startTime"
+          [value]="initial()?.startTime ?? ''"
+          type="time"
+          step="60"
+          required
+          [attr.aria-invalid]="!!errors()['startTime']"
+          aria-describedby="start-help"
+          (blur)="validate($event)"
+        />
+        <p class="help error" id="start-help">{{ errors()['startTime'] }}</p>
+      </div>
+      <div class="field">
+        <label for="end-time">End time</label>
+        <input
+          id="end-time"
+          name="endTime"
+          [value]="initial()?.endTime ?? ''"
+          type="time"
+          step="60"
+          required
+          [attr.aria-invalid]="!!errors()['endTime']"
+          aria-describedby="end-help"
+          (blur)="validate($event)"
+        />
+        <p class="help" id="end-help" [class.error]="errors()['endTime']">
+          {{ errors()['endTime'] || 'May end on a later date.' }}
+        </p>
+      </div>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label for="court-count">Number of courts</label>
+        <input
+          id="court-count"
+          name="numberOfCourts"
+          type="number"
+          [value]="initial()?.numberOfCourts ?? 1"
+          min="1"
+          max="2147483647"
+          step="1"
+          required
+          [attr.aria-invalid]="!!errors()['numberOfCourts']"
+          aria-describedby="courts-help"
+          (blur)="validate($event)"
+        />
+        <p class="help error" id="courts-help">{{ errors()['numberOfCourts'] }}</p>
+      </div>
+      <div class="field">
+        <label for="player-limit">Maximum players <span>(optional)</span></label>
+        <input
+          id="player-limit"
+          name="maximumPlayers"
+          [value]="initial()?.maximumPlayers ?? ''"
+          type="number"
+          min="1"
+          max="2147483647"
+          step="1"
+          [attr.aria-invalid]="!!errors()['maximumPlayers']"
+          aria-describedby="limit-help"
+          (blur)="validate($event)"
+        />
+        <p class="help" id="limit-help" [class.error]="errors()['maximumPlayers']">
+          {{ errors()['maximumPlayers'] || 'Leave blank for an open roster.' }}
+        </p>
+      </div>
+    </div>
+    <p class="form-note">Fair turns are the default. Add your players once the room is ready.</p>
+    <div class="form-actions">
+      <button class="primary" type="submit">
+        {{ disabled() ? 'Saving…' : initial() ? 'Save Session' : 'Create Session →' }}
+      </button>
+      @if (initial()) {
+        <button type="button" class="secondary" (click)="cancelEdit.emit()">Cancel</button>
+      }
+    </div>
+  </fieldset>
+</form>

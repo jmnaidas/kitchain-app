@@ -1,0 +1,69 @@
+<section [attr.aria-label]="'Rally history on Court ' + match().courtNumber">
+  @if (ordered().length) {
+    <p class="eyebrow">
+      {{ expanded() ? 'Recorded rallies · newest first' : 'Latest rally'
+      }}{{ readOnly() ? '' : ' · call-outs are optional' }}
+    </p>
+    <ol class="events" aria-label="Recorded rallies">
+      @for (rally of visible(); track rally.id) {
+        <li>
+          <div class="event-heading">
+            <strong>Rally {{ rally.sequence }} · Team {{ rally.winner }}</strong>
+            @if (rally.callOut) {
+              <span class="separator" aria-hidden="true"> · </span>
+              <span class="tag">{{ label(rally.callOut) }}</span>
+            }
+          </div>
+          <p class="context">
+            {{ rally.pointAwarded ? 'Point awarded' : 'No point awarded' }} · After rally: A
+            {{ rally.teamAScore }}–{{ rally.teamBScore }} B · Serving Team {{ rally.servingTeam }},
+            server {{ rally.currentServerNumber }}
+          </p>
+          @if (!readOnly()) {
+            @if (editing() === rally.id) {
+              <div class="call-out-editor">
+                <label>
+                  Call-out for rally {{ rally.sequence }}
+                  <select
+                    [value]="rally.callOut ?? ''"
+                    [disabled]="disabled()"
+                    (change)="change(rally, $event)"
+                    [attr.aria-label]="'Call-out for rally ' + rally.sequence"
+                  >
+                    <option value="">No call-out</option>
+                    @for (type of types; track type) {
+                      <option [value]="type">{{ label(type) }}</option>
+                    }
+                  </select>
+                </label>
+                <button type="button" (click)="editing.set(null)">Close call-out editor</button>
+              </div>
+            } @else {
+              <button
+                type="button"
+                [disabled]="disabled()"
+                (click)="editing.set(rally.id)"
+                [attr.aria-label]="
+                  (rally.callOut ? 'Edit' : 'Add') + ' call-out for rally ' + rally.sequence
+                "
+              >
+                {{ rally.callOut ? 'Edit call-out' : '+ Add call-out' }}
+              </button>
+            }
+          }
+        </li>
+      }
+    </ol>
+    @if (ordered().length > 1) {
+      <button type="button" [attr.aria-expanded]="expanded()" (click)="expanded.set(!expanded())">
+        {{ expanded() ? 'Show latest rally' : 'Show rally history (' + ordered().length + ')' }}
+      </button>
+    }
+  } @else {
+    <p class="context">No rallies recorded for this game.</p>
+  }
+  <p class="history-note">
+    Recorded snapshots stay unchanged after score corrections. Earlier or unrecorded play may not
+    appear here.
+  </p>
+</section>

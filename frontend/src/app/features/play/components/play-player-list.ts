@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { PlayPlayer } from '../data-access/play.models';
+import { PlayDraftPlayer } from './play-draft-player';
 
 export interface PlayerStateChange {
   player: PlayPlayer;
@@ -8,6 +9,7 @@ export interface PlayerStateChange {
 
 @Component({
   selector: 'app-play-player-list',
+  imports: [PlayDraftPlayer],
   templateUrl: './play-player-list.html',
   styleUrl: './play-player-list.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,9 +21,13 @@ export class PlayPlayerList {
   readonly featured = input(false);
   readonly disabled = input(false);
   readonly stateChange = output<PlayerStateChange>();
+  readonly draft = input(false);
+  readonly completedPlayers = input<Readonly<Record<string, boolean>>>({});
+  readonly renamePlayer = output<{ playerId: string; displayName: string }>();
+  readonly removePlayer = output<string>();
 
   protected change(player: PlayPlayer) {
-    if (this.disabled() || player.state === 'Playing') return;
+    if (this.disabled() || this.draft() || player.state === 'Playing') return;
     this.stateChange.emit({ player, action: player.state === 'Waiting' ? 'rest' : 'rejoin' });
   }
 }

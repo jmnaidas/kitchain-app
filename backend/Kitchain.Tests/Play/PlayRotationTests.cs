@@ -14,7 +14,7 @@ public sealed class PlayRotationTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public void Start_fills_lowest_courts_with_complete_FIFO_groups_and_deterministic_teams(int courts)
+    public void Start_fills_lowest_courts_with_equally_fair_waiting_players_and_valid_teams(int courts)
     {
         var session = Session(courts);
         var players = Add(session, 14);
@@ -24,7 +24,7 @@ public sealed class PlayRotationTests
         for (var i = 0; i < courts; i++)
         {
             Assert.Equal(i + 1, matches[i].CourtNumber);
-            Assert.Equal(players.Skip(i * 4).Take(4).Select(p => p.Id), Participants(matches[i]));
+            Assert.Equal(players.Skip(i * 4).Take(4).Select(p => p.Id).Order(), Participants(matches[i]).Order());
             Assert.Equal(new[] { PlayTeam.A, PlayTeam.A, PlayTeam.B, PlayTeam.B }, matches[i].Players.OrderBy(p => p.Position).Select(p => p.Team));
         }
         Assert.Equal(players.Skip(courts * 4).Select(p => p.Id), session.WaitingQueue.Select(p => p.Id));
@@ -43,10 +43,15 @@ public sealed class PlayRotationTests
         Assert.Equal(PlayMatchStatus.Completed, second.Status);
         Assert.Equal(Now.AddMinutes(10), second.CompletedAt);
         Assert.Equal(PlayMatchStatus.Active, first.Status);
-        Assert.Equal(players.Take(4).Select(p => p.Id), Participants(first));
+        Assert.Equal(players.Take(4).Select(p => p.Id).Order(), Participants(first).Order());
+        Assert.True(second.IsCurrent);
+        Assert.Equal(players.Skip(8).Select(p => p.Id), session.WaitingQueue.Select(p => p.Id));
+        Assert.Equal(2, session.Matches.Count);
+        session.StartNextGame(second.Id, session.NextLineup(second.Id).Select(p => p.Id).ToArray(), false, Now.AddMinutes(10));
+        Assert.False(second.IsCurrent);
         var replacement = session.Matches.Single(m => m.CourtNumber == 2 && m.Status == PlayMatchStatus.Active);
-        Assert.Equal(players.Skip(8).Take(4).Select(p => p.Id), Participants(replacement));
-        Assert.Equal(players.Skip(12).Concat(players.Skip(4).Take(4)).Select(p => p.Id), session.WaitingQueue.Select(p => p.Id));
+        Assert.Equal(players.Skip(8).Take(4).Select(p => p.Id).Order(), Participants(replacement).Order());
+        Assert.Equal(players.Skip(12).Select(p => p.Id).Concat(Participants(second)), session.WaitingQueue.Select(p => p.Id));
         Assert.Equal(new long?[] { 13, 14, 15, 16, 17, 18 }, session.WaitingQueue.Select(p => p.QueueOrder));
         Assert.Throws<PlayConflictException>(() => session.FinishGame(second.Id, Now.AddMinutes(11)));
         Assert.Equal(2, session.Matches.Count(m => m.Status == PlayMatchStatus.Active));
@@ -63,7 +68,7 @@ public sealed class PlayRotationTests
         var late = session.AddGuest("Late guest", Now);
         var match = Assert.Single(session.Matches);
         Assert.Equal(1, match.CourtNumber);
-        Assert.Equal(players.Append(late).Select(p => p.Id), Participants(match));
+        Assert.Equal(players.Append(late).Select(p => p.Id).Order(), Participants(match).Order());
         Assert.Empty(session.WaitingQueue);
     }
 
@@ -71,13 +76,14 @@ public sealed class PlayRotationTests
     public void Resting_is_excluded_rejoin_fills_free_court_and_playing_cannot_break()
     {
         var session = Session(1);
-        var players = Add(session, 4);
-        session.Rest(players[0].Id, Now);
+        var players = Add(session, 3);
         session.Start(Now);
+        session.Rest(players[0].Id, Now);
+        var fourth = session.AddGuest("Fourth", Now);
         Assert.Empty(session.Matches);
         session.Rejoin(players[0].Id, Now);
         var match = Assert.Single(session.Matches);
-        Assert.Equal(players.Skip(1).Append(players[0]).Select(p => p.Id), Participants(match));
+        Assert.Equal(players.Append(fourth).Select(p => p.Id).Order(), Participants(match).Order());
         Assert.Throws<PlayConflictException>(() => session.Rest(players[0].Id, Now));
         Assert.Equal(PlayPlayerState.Playing, players[0].State);
     }
@@ -86,18 +92,19 @@ public sealed class PlayRotationTests
     public void Repeated_rotation_never_duplicates_active_participants_or_courts()
     {
         var session = Session(2);
-        Add(session, 9);
+        Add(session, 12);
         session.Start(Now);
         for (var turn = 0; turn < 6; turn++)
         {
             var match = session.Matches.First(m => m.Status == PlayMatchStatus.Active);
             session.FinishGame(match.Id, Now);
+            session.StartNextGame(match.Id, session.NextLineup(match.Id).Select(p => p.Id).ToArray(), false, Now);
             var active = session.Matches.Where(m => m.Status == PlayMatchStatus.Active).ToArray();
             var ids = active.SelectMany(Participants).ToArray();
             Assert.Equal(2, active.Select(m => m.CourtNumber).Distinct().Count());
             Assert.Equal(8, ids.Distinct().Count());
             Assert.DoesNotContain(session.WaitingQueue, p => ids.Contains(p.Id));
-            Assert.Single(session.WaitingQueue);
+            Assert.Equal(4, session.WaitingQueue.Count);
         }
     }
 }

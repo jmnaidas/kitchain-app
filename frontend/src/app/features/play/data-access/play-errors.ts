@@ -1,6 +1,27 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 const conflicts: Record<string, string> = {
+  'This rally call-out has changed. Refresh before editing it.':
+    'Someone changed this call-out. The room will refresh before you edit it again.',
+  'This game is no longer current. Refresh the session.':
+    'The court has moved to another game. Its earlier rally history is read-only.',
+  'This game cannot record another rally.': 'This game has reached its rally history limit.',
+  'Only an Active session supports taking a break or rejoining.':
+    'Start the session before taking a break or rejoining.',
+  'Only a Draft session can edit its details.':
+    'The session has started. Its settings are now read-only.',
+  'Maximum players cannot be lower than the current roster size.':
+    'The player limit must include everyone currently on the roster.',
+  'Only Draft session players can be edited or removed.':
+    'The session has started. Draft roster edits are no longer available.',
+  'Live scoring is not enabled for this session.':
+    'This is a Queue Only session. Players keep score themselves.',
+  'This court is no longer awaiting a next game.':
+    'Another host has already changed this court. Refresh to see its current game.',
+  'The next lineup has changed. Refresh and choose four eligible players.':
+    'A selected player is no longer eligible for this court. Refresh, then reset to fair rotation or edit the lineup.',
+  'The fair lineup has changed. Refresh before starting the next game.':
+    'The fair recommendation has changed. Reset to fair rotation before confirming.',
   'Only an Active session can be scored.':
     'This session is not active. Refresh to see its current state.',
   'The score cannot be increased further. Correct the score.':
@@ -25,10 +46,11 @@ const conflicts: Record<string, string> = {
 };
 const fieldMessages: Record<string, string> = {
   name: 'Enter a session name of 1–200 characters.',
-  date: 'Enter a valid session date.',
+  date: 'Enter a valid start date.',
+  endDate: 'Enter a valid end date.',
   sessionDate: 'Enter a valid session date.',
   startTime: 'Enter a valid start time.',
-  endTime: 'End time must be after start time on the same day.',
+  endTime: 'End date and time must be after start date and time.',
   numberOfCourts: 'Enter a whole number of courts, from 1 to 2,147,483,647.',
   maximumPlayers: 'Enter a positive whole number, or leave this blank.',
   displayName: 'Enter a player name of 1–80 characters.',

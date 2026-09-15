@@ -1,0 +1,65 @@
+@if (!open()) {
+  <button type="button" [disabled]="disabled()" (click)="proceed()">Proceed to next game</button>
+} @else {
+  <section [attr.aria-label]="'Up next on Court ' + match().courtNumber">
+    <p class="eyebrow">Up next · Court {{ match().courtNumber }}</p>
+    @if (!editing() && match().nextLineup.length < 4) {
+      <p role="status">
+        Fair rotation needs four eligible players. Edit lineup to review players from this completed
+        game. No players move until the next game is confirmed.
+      </p>
+      <button type="button" [disabled]="disabled()" (click)="editing.set(true)">Edit lineup</button>
+      <button type="button" [disabled]="disabled()" (click)="open.set(false)">Cancel</button>
+    } @else {
+      <div class="lineup">
+        @for (label of positions; track label; let i = $index) {
+          @if (editing()) {
+            <label
+              >{{ label
+              }}<select
+                [attr.aria-label]="label"
+                [disabled]="disabled()"
+                [value]="selected()[i]"
+                (change)="select(i, $event)"
+              >
+                <option value="">Choose an eligible player</option>
+                @for (player of match().eligiblePlayers; track player.id) {
+                  <option [value]="player.id">{{ player.displayName }}</option>
+                }
+              </select></label
+            >
+          } @else {
+            <div>
+              <span>{{ label }}</span
+              ><strong>{{ name(selected()[i]) }}</strong>
+            </div>
+          }
+        }
+      </div>
+      <p class="help">
+        {{
+          editing()
+            ? 'Host override: choose any eligible players for this court. Fair rotation is the default.'
+            : 'Fair rotation · playing opportunities and variety. No players move until you confirm.'
+        }}
+      </p>
+      <div class="actions">
+        <button type="button" [disabled]="disabled()" (click)="editing.set(true)">
+          Edit lineup
+        </button>
+        <button type="button" [disabled]="disabled()" (click)="reset()">
+          Reset to fair rotation
+        </button>
+      </div>
+      @if (error()) {
+        <p role="alert">{{ error() }}</p>
+      }
+      <div class="actions">
+        <button type="button" [disabled]="disabled()" (click)="open.set(false)">Cancel</button>
+        <button type="button" class="primary" [disabled]="disabled()" (click)="confirm()">
+          Start Next Game
+        </button>
+      </div>
+    }
+  </section>
+}

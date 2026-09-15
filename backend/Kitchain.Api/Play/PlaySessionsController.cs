@@ -22,6 +22,11 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
             return CreatedAtAction(nameof(Find), new { code = session.JoinCode }, session);
         });
 
+    [HttpPatch("{code}")]
+    [RequestSizeLimit(8192)]
+    public Task<ActionResult<PlaySessionDetail>> Edit(string code, CreatePlaySession input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.EditAsync(code, input, cancellationToken));
+
     [HttpGet("{code}")]
     [ProducesResponseType<PlaySessionDetail>(StatusCodes.Status200OK)]
     public Task<ActionResult<PlaySessionDetail>> Find(string code, CancellationToken cancellationToken) =>
@@ -58,6 +63,12 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> FinishGame(string code, Guid matchId, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.FinishGameAsync(code, matchId, cancellationToken));
 
+    [HttpPatch("{code}/matches/{matchId:guid}/rallies/{rallyId:guid}/call-out")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> EditRallyCallOut(string code, Guid matchId, Guid rallyId,
+        EditPlayRallyCallOut input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.EditRallyCallOutAsync(code, matchId, rallyId, input, cancellationToken));
+
     [HttpPost("{code}/matches/{matchId:guid}/rallies")]
     [RequestSizeLimit(2048)]
     public Task<ActionResult<PlaySessionDetail>> RecordRally(string code, Guid matchId, RecordPlayRally input, CancellationToken cancellationToken) =>
@@ -67,6 +78,24 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     [RequestSizeLimit(2048)]
     public Task<ActionResult<PlaySessionDetail>> CorrectScore(string code, Guid matchId, CorrectPlayScore input, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.CorrectScoreAsync(code, matchId, input, cancellationToken));
+
+    [HttpPatch("{code}/players/{playerId:guid}")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> RenameGuest(string code, Guid playerId, AddPlayGuest input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.RenameGuestAsync(code, playerId, input, cancellationToken));
+
+    [HttpDelete("{code}/players/{playerId:guid}")]
+    public Task<ActionResult<PlaySessionDetail>> RemoveGuest(string code, Guid playerId, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.RemoveGuestAsync(code, playerId, cancellationToken));
+
+    [HttpPost("{code}/end")]
+    public Task<ActionResult<PlaySessionDetail>> End(string code, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.EndAsync(code, cancellationToken));
+
+    [HttpPost("{code}/matches/{matchId:guid}/next")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> StartNextGame(string code, Guid matchId, StartNextPlayGame input, CancellationToken cancellationToken) =>
+        SessionResult(() => sessions.StartNextGameAsync(code, matchId, input, cancellationToken));
 
     private Task<ActionResult<PlaySessionDetail>> SessionResult(Func<Task<PlaySessionDetail?>> operation) =>
         Execute<PlaySessionDetail>(async () =>

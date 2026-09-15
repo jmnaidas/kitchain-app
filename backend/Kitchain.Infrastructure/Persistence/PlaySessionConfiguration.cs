@@ -10,9 +10,10 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
     {
         session.ToTable("PlaySessions", table =>
         {
+            table.HasCheckConstraint("CK_PlaySessions_Mode", "\"Mode\" IN ('QueueOnly', 'LiveScoring')");
             table.HasCheckConstraint("CK_PlaySessions_JoinCode", "\"JoinCode\" ~ '^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$'");
             table.HasCheckConstraint("CK_PlaySessions_Name", "length(trim(\"Name\")) > 0");
-            table.HasCheckConstraint("CK_PlaySessions_Schedule", "\"EndTime\" > \"StartTime\"");
+            table.HasCheckConstraint("CK_PlaySessions_Schedule", "(\"EndDate\" + \"EndTime\") > (\"SessionDate\" + \"StartTime\")");
             table.HasCheckConstraint("CK_PlaySessions_Capacity", "\"NumberOfCourts\" > 0 AND (\"MaximumPlayers\" IS NULL OR \"MaximumPlayers\" > 0)");
             table.HasCheckConstraint("CK_PlaySessions_Status", "\"Status\" IN ('Draft', 'Active', 'Ended')");
             table.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" = 'FairRotation' AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
@@ -24,6 +25,7 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
         session.Property(s => s.JoinCode).HasMaxLength(6).IsRequired();
         session.Property(s => s.Name).HasMaxLength(200).IsRequired();
         session.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+        session.Property(s => s.Mode).HasConversion<string>().HasMaxLength(20);
         session.Property(s => s.RotationMode).HasConversion<string>().HasMaxLength(30);
         session.Property(s => s.ScoringMode).HasConversion<string>().HasMaxLength(30);
         session.HasIndex(s => s.JoinCode).IsUnique();
@@ -41,6 +43,8 @@ internal sealed class PlaySessionPlayerConfiguration : IEntityTypeConfiguration<
     {
         player.ToTable("PlaySessionPlayers", table =>
         {
+            table.HasCheckConstraint("CK_PlaySessionPlayers_Fairness", "\"AdjustedGamesStarted\" >= 0 AND \"MissedOpportunities\" >= 0");
+            table.HasCheckConstraint("CK_PlaySessionPlayers_WaitingSince", "(\"State\" = 'Waiting') = (\"WaitingSince\" IS NOT NULL)");
             table.HasCheckConstraint("CK_PlaySessionPlayers_Name", "length(trim(\"DisplayName\")) > 0 AND length(trim(\"NormalizedDisplayName\")) > 0");
             table.HasCheckConstraint("CK_PlaySessionPlayers_Identity", "\"IdentityType\" = 'Guest'");
             table.HasCheckConstraint("CK_PlaySessionPlayers_State", "\"State\" IN ('Waiting', 'Playing', 'Resting')");

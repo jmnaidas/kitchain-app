@@ -36,6 +36,7 @@ public sealed class PlaySessionTests
         Assert.Equal(PlayPlayerIdentityType.Guest, alex.IdentityType);
         Assert.Equal(PlayPlayerState.Waiting, alex.State);
         Assert.Equal(new[] { alex.Id, sam.Id }, session.WaitingQueue.Select(p => p.Id));
+        session.Start(Now);
         session.Rest(alex.Id, Now.AddMinutes(1));
         Assert.Null(alex.QueueOrder);
         Assert.Equal(PlayPlayerState.Resting, alex.State);
@@ -59,6 +60,7 @@ public sealed class PlaySessionTests
         var player = session.AddGuest("Alex  Cruz", Now);
         Assert.Throws<PlayConflictException>(() => session.AddGuest(" alex cruz ", Now));
         Assert.Equal(1, session.NextQueueOrder);
+        session.Start(Now);
         session.Rest(player.Id, Now);
         Assert.Throws<PlayConflictException>(() => session.AddGuest("ALEX CRUZ", Now));
         session.AddGuest("Sam", Now);

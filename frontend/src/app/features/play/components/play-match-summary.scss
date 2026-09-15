@@ -1,0 +1,56 @@
+:host {
+  display: block;
+  margin-bottom: 1rem;
+}
+article {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  overflow-wrap: anywhere;
+}
+header,
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+header {
+  justify-content: space-between;
+}
+h3,
+.result {
+  margin-block: 0 0.5rem;
+}
+.teams {
+  display: grid;
+  gap: 0.25rem;
+}
+.timing,
+.muted,
+.match-id,
+header span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.match-id {
+  margin-bottom: 0;
+}
+.tags {
+  list-style: none;
+  padding: 0;
+  font-size: 0.85rem;
+}
+button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  color: var(--forest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+}

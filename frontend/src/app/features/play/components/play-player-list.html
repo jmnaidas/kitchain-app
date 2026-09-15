@@ -7,15 +7,25 @@
         <span class="player-mark" aria-hidden="true">K</span>
       }
       <div class="identity">
-        <strong>{{ player.displayName }}</strong
-        ><span class="state"
-          >{{ player.state }}
-          @if (player.state === 'Playing' && courts()[player.id]) {
-            · Court {{ courts()[player.id] }}
+        <strong>{{ player.displayName }}</strong>
+        <div class="player-meta">
+          <span class="state">
+            {{ completedPlayers()[player.id] ? 'Game complete' : player.state }}
+            @if (player.state === 'Playing' && courts()[player.id]) {
+              · Court {{ courts()[player.id] }}
+            }
+          </span>
+          @if (draft()) {
+            <app-play-draft-player
+              [player]="player"
+              [disabled]="disabled()"
+              (renamePlayer)="renamePlayer.emit($event)"
+              (removePlayer)="removePlayer.emit($event)"
+            />
           }
-        </span>
+        </div>
       </div>
-      @if (player.state !== 'Playing') {
+      @if (!draft() && player.state !== 'Playing') {
         <button
           type="button"
           [disabled]="disabled()"

@@ -1,0 +1,29 @@
+import { DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
+import {
+  PlayMatchSummary as MatchSummary,
+  PlayRallyCallOut,
+  PlayTeam,
+} from '../data-access/play.models';
+import { PlayRallyHistory } from './play-rally-history';
+
+@Component({
+  selector: 'app-play-match-summary',
+  imports: [DatePipe, PlayRallyHistory],
+  templateUrl: './play-match-summary.html',
+  styleUrl: './play-match-summary.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PlayMatchSummary {
+  readonly match = input.required<MatchSummary>();
+  protected readonly expanded = signal(false);
+  protected teamNames(team: PlayTeam) {
+    return this.match()
+      .players.filter((p) => p.team === team)
+      .map((p) => p.displayName)
+      .join(' + ');
+  }
+  protected label(tag: PlayRallyCallOut) {
+    return tag === 'ServiceBreak' ? 'Service break' : tag;
+  }
+}

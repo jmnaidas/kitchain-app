@@ -1,0 +1,48 @@
+<article [attr.aria-label]="'Completed match ' + match().id">
+  <header>
+    <h3>Court {{ match().courtNumber }}</h3>
+    <span>Completed</span>
+  </header>
+  <p class="result">
+    @if (match().winner) {
+      Team {{ match().winner }} won
+    } @else {
+      Completed · Winner not recorded
+    }
+    @if (match().teamAScore !== null && match().teamBScore !== null) {
+      <span class="final-score">
+        · Final score: A {{ match().teamAScore }}–{{ match().teamBScore }} B</span
+      >
+    }
+  </p>
+  <p class="teams">
+    <strong>Team A: {{ teamNames('A') }}</strong>
+    <span>vs</span>
+    <strong>Team B: {{ teamNames('B') }}</strong>
+  </p>
+  <p class="timing">
+    Started {{ match().startedAt | date: 'medium' }}
+    @if (match().completedAt) {
+      · Finished {{ match().completedAt | date: 'medium' }}
+    }
+  </p>
+  @if (match().totalRallies !== null) {
+    <p>{{ match().totalRallies }} recorded rallies · {{ match().taggedRallies }} tagged</p>
+    @if (match().callOutCounts.length) {
+      <ul class="tags" aria-label="Call-out counts">
+        @for (count of match().callOutCounts; track count.callOut) {
+          <li>{{ label(count.callOut) }} {{ count.count }}</li>
+        }
+      </ul>
+    }
+    <button type="button" [attr.aria-expanded]="expanded()" (click)="expanded.set(!expanded())">
+      {{ expanded() ? 'Hide rally history' : 'View rally history' }}
+    </button>
+    @if (expanded()) {
+      <app-play-rally-history [match]="match()" [readOnly]="true" />
+    }
+  } @else {
+    <p class="muted">Queue Only · Score and rallies were not tracked.</p>
+  }
+  <p class="match-id">Match ID: {{ match().id }}</p>
+</article>

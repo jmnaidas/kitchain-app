@@ -35,7 +35,8 @@ public sealed class EfPlaySessionStore(KitchainDbContext db) : IPlaySessionStore
 
     public Task<PlaySession?> FindAsync(string code, CancellationToken cancellationToken) =>
         db.Set<PlaySession>().AsNoTracking().AsSingleQuery().Include(s => s.Players)
-            .Include(s => s.Matches.Where(m => m.Status == PlayMatchStatus.Active)).ThenInclude(m => m.Players)
+            .Include(s => s.Matches).ThenInclude(m => m.Players)
+            .Include(s => s.Matches).ThenInclude(m => m.Rallies)
             .SingleOrDefaultAsync(s => s.JoinCode == code, cancellationToken);
 
     public async Task<PlaySession?> UpdateAsync(string code, Action<PlaySession> update, CancellationToken cancellationToken)
@@ -49,14 +50,14 @@ public sealed class EfPlaySessionStore(KitchainDbContext db) : IPlaySessionStore
         if (session is null) return null;
         await db.Entry(session).Collection(s => s.Players).LoadAsync(cancellationToken);
         await db.Entry(session).Collection(s => s.Matches).Query()
-            .Where(m => m.Status == PlayMatchStatus.Active).Include(m => m.Players).LoadAsync(cancellationToken);
-        var active = session.Matches.Where(m => m.Status == PlayMatchStatus.Active).ToArray();
+            .AsSingleQuery().Include(m => m.Players).Include(m => m.Rallies).LoadAsync(cancellationToken);
+        var current = session.Matches.Where(m => m.IsCurrent).ToArray();
         update(session);
         // Release the filtered unique court slot before EF inserts its replacement match.
         // Both this update and the full aggregate save remain inside the session transaction.
-        foreach (var completed in active.Where(m => m.Status == PlayMatchStatus.Completed))
+        foreach (var completed in current.Where(m => !m.IsCurrent))
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE \"PlayMatches\" SET \"Status\" = 'Completed', \"CompletedAt\" = {completed.CompletedAt} WHERE \"Id\" = {completed.Id}", cancellationToken);
+                $"UPDATE \"PlayMatches\" SET \"IsCurrent\" = FALSE WHERE \"Id\" = {completed.Id}", cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return session;

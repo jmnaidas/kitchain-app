@@ -6,6 +6,7 @@ public enum PlayTeam { A, B }
 public sealed class PlayMatch
 {
     private readonly List<PlayMatchPlayer> _players = [];
+    private readonly List<PlayRallyEvent> _rallies = [];
     private PlayMatch() { }
 
     internal PlayMatch(Guid sessionId, int courtNumber, IReadOnlyList<PlaySessionPlayer> players, DateTimeOffset now)
@@ -26,6 +27,8 @@ public sealed class PlayMatch
     public Guid SessionId { get; private set; }
     public int CourtNumber { get; private set; }
     public PlayMatchStatus Status { get; private set; }
+    public bool IsCurrent { get; private set; } = true;
+    public PlayTeam? Winner { get; private set; }
     public DateTimeOffset StartedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
     public int TeamAScore { get; private set; }
@@ -34,11 +37,30 @@ public sealed class PlayMatch
     // Opening doubles service has only one entitlement: announce 0-0-2.
     public int CurrentServerNumber { get; private set; } = 2;
     public IReadOnlyCollection<PlayMatchPlayer> Players => _players.AsReadOnly();
+    public IReadOnlyCollection<PlayRallyEvent> Rallies => _rallies.AsReadOnly();
 
-    internal bool RecordRally(PlayTeam winner, int targetScore, int winBy)
+    internal bool RecordRally(PlayTeam winner, int targetScore, int winBy, DateTimeOffset now)
     {
         EnsureActive();
         if (!Enum.IsDefined(winner)) throw new ArgumentException("Choose rally winner A or B.", nameof(winner));
+        var lastSequence = _rallies.Count == 0 ? 0 : _rallies.Max(r => r.Sequence);
+        if (lastSequence == long.MaxValue)
+            throw new PlayConflictException("This game cannot record another rally.");
+        var pointAwarded = winner == ServingTeam;
+        var won = ApplyRally(winner, targetScore, winBy);
+        _rallies.Add(new PlayRallyEvent(this, lastSequence + 1, winner, pointAwarded, now));
+        return won;
+    }
+
+    internal void EditCallOut(Guid rallyId, PlayRallyCallOut? callOut, PlayRallyCallOut? expectedCallOut)
+    {
+        var rally = _rallies.SingleOrDefault(r => r.Id == rallyId)
+            ?? throw new KeyNotFoundException("Rally not found in this match.");
+        rally.EditCallOut(callOut, expectedCallOut);
+    }
+
+    private bool ApplyRally(PlayTeam winner, int targetScore, int winBy)
+    {
         if (winner != ServingTeam)
         {
             if (CurrentServerNumber == 1) CurrentServerNumber = 2;
@@ -69,7 +91,7 @@ public sealed class PlayMatch
         TeamBScore = teamBScore;
         ServingTeam = servingTeam;
         CurrentServerNumber = currentServerNumber;
-        // Correction repairs state only; it never completes or rotates a game.
+        // The session evaluates the winning condition after a valid correction.
     }
 
     private void EnsureActive()
@@ -77,12 +99,15 @@ public sealed class PlayMatch
         if (Status != PlayMatchStatus.Active) throw new PlayConflictException("This game is no longer active.");
     }
 
-    internal void Complete(DateTimeOffset now)
+    internal void Complete(DateTimeOffset now, PlayTeam? winner = null)
     {
         if (Status != PlayMatchStatus.Active) throw new PlayConflictException("This game is no longer active.");
         Status = PlayMatchStatus.Completed;
         CompletedAt = now.ToUniversalTime();
+        Winner = winner;
     }
+
+    internal void ReleaseCourt() => IsCurrent = false;
 }
 
 public sealed class PlayMatchPlayer

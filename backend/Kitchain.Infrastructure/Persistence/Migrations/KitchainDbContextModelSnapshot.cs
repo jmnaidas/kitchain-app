@@ -463,6 +463,8 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateOnly>("EndDate").HasColumnType("date");
+
                     b.Property<TimeOnly>("EndTime")
                         .HasColumnType("time without time zone");
 
@@ -482,6 +484,7 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("Mode").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
                     b.Property<long>("NextQueueOrder")
                         .HasColumnType("bigint");
 
@@ -522,6 +525,7 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
 
                     b.ToTable("PlaySessions", null, t =>
                         {
+                            t.HasCheckConstraint("CK_PlaySessions_Mode", "\"Mode\" IN ('QueueOnly', 'LiveScoring')");
                             t.HasCheckConstraint("CK_PlaySessions_Capacity", "\"NumberOfCourts\" > 0 AND (\"MaximumPlayers\" IS NULL OR \"MaximumPlayers\" > 0)");
 
                             t.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" = 'FairRotation' AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
@@ -532,7 +536,7 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_PlaySessions_QueueCounter", "\"NextQueueOrder\" >= 0");
 
-                            t.HasCheckConstraint("CK_PlaySessions_Schedule", "\"EndTime\" > \"StartTime\"");
+                            t.HasCheckConstraint("CK_PlaySessions_Schedule", "(\"EndDate\" + \"EndTime\") > (\"SessionDate\" + \"StartTime\")");
 
                             t.HasCheckConstraint("CK_PlaySessions_Status", "\"Status\" IN ('Draft', 'Active', 'Ended')");
 
@@ -554,6 +558,10 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<long>("AdjustedGamesStarted").HasColumnType("bigint");
+                    b.Property<long>("MissedOpportunities").HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("WaitingSince").HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("JoinedAt")
                         .HasColumnType("timestamp with time zone");
@@ -598,6 +606,8 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_PlaySessionPlayers_State", "\"State\" IN ('Waiting', 'Playing', 'Resting')");
 
+                            t.HasCheckConstraint("CK_PlaySessionPlayers_Fairness", "\"AdjustedGamesStarted\" >= 0 AND \"MissedOpportunities\" >= 0");
+                            t.HasCheckConstraint("CK_PlaySessionPlayers_WaitingSince", "(\"State\" = 'Waiting') = (\"WaitingSince\" IS NOT NULL)");
                             t.HasCheckConstraint("CK_PlaySessionPlayers_Timestamps", "\"UpdatedAt\" >= \"JoinedAt\"");
                         });
                 });
@@ -681,6 +691,8 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid");
                     b.Property<Guid>("SessionId").HasColumnType("uuid");
+                    b.Property<bool>("IsCurrent").HasColumnType("boolean");
+                    b.Property<string>("Winner").HasMaxLength(1).HasColumnType("character varying(1)");
                     b.Property<int>("TeamAScore").HasColumnType("integer");
                     b.Property<int>("TeamBScore").HasColumnType("integer");
                     b.Property<int>("CurrentServerNumber").HasColumnType("integer");
@@ -690,11 +702,13 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("StartedAt").HasColumnType("timestamp with time zone");
                     b.Property<DateTimeOffset?>("CompletedAt").HasColumnType("timestamp with time zone");
                     b.HasKey("Id");
-                    b.HasIndex("SessionId", "CourtNumber").IsUnique().HasFilter("\"Status\" = 'Active'");
+                    b.HasIndex("SessionId", "CourtNumber").IsUnique().HasFilter("\"IsCurrent\"");
                     b.ToTable("PlayMatches", null, t =>
                         {
                             t.HasCheckConstraint("CK_PlayMatches_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
                             t.HasCheckConstraint("CK_PlayMatches_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_PlayMatches_Current", "\"Status\" <> 'Active' OR \"IsCurrent\"");
+                            t.HasCheckConstraint("CK_PlayMatches_Winner", "\"Winner\" IS NULL OR (\"Status\" = 'Completed' AND \"Winner\" IN ('A', 'B'))");
                             t.HasCheckConstraint("CK_PlayMatches_Court", "\"CourtNumber\" > 0");
                             t.HasCheckConstraint("CK_PlayMatches_Status", "(\"Status\" = 'Active' AND \"CompletedAt\" IS NULL) OR (\"Status\" = 'Completed' AND \"CompletedAt\" >= \"StartedAt\" AND \"CompletedAt\" IS NOT NULL)");
                         });
@@ -725,6 +739,33 @@ namespace Kitchain.Infrastructure.Persistence.Migrations
                 });
             modelBuilder.Entity("Kitchain.Domain.Play.PlayMatch", b => b.Navigation("Players"));
             modelBuilder.Entity("Kitchain.Domain.Play.PlaySession", b => b.Navigation("Matches"));
+            modelBuilder.Entity("Kitchain.Domain.Play.PlayRallyEvent", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("MatchId").HasColumnType("uuid");
+                    b.Property<long>("Sequence").HasColumnType("bigint");
+                    b.Property<string>("Winner").IsRequired().HasMaxLength(1).HasColumnType("character varying(1)");
+                    b.Property<bool>("PointAwarded").HasColumnType("boolean");
+                    b.Property<string>("CallOut").HasMaxLength(30).HasColumnType("character varying(30)");
+                    b.Property<int>("TeamAScore").HasColumnType("integer");
+                    b.Property<int>("TeamBScore").HasColumnType("integer");
+                    b.Property<string>("ServingTeam").IsRequired().HasMaxLength(1).HasColumnType("character varying(1)");
+                    b.Property<int>("CurrentServerNumber").HasColumnType("integer");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("MatchId", "Sequence").IsUnique();
+                    b.ToTable("PlayRallyEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PlayRallyEvents_Sequence", "\"Sequence\" > 0");
+                            t.HasCheckConstraint("CK_PlayRallyEvents_Winner", "\"Winner\" IN ('A', 'B')");
+                            t.HasCheckConstraint("CK_PlayRallyEvents_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
+                            t.HasCheckConstraint("CK_PlayRallyEvents_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_PlayRallyEvents_CallOut", "\"CallOut\" IS NULL OR \"CallOut\" IN ('Drive', 'Dink', 'Lob', 'Fault', 'Out', 'Kitchen', 'ServiceBreak')");
+                        });
+                    b.HasOne("Kitchain.Domain.Play.PlayMatch", null).WithMany("Rallies")
+                        .HasForeignKey("MatchId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+            modelBuilder.Entity("Kitchain.Domain.Play.PlayMatch", b => b.Navigation("Rallies"));
 #pragma warning restore 612, 618
         }
     }

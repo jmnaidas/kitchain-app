@@ -99,3 +99,29 @@ nav {
     gap: 0.5rem;
   }
 }
+.team-a,
+.team-b {
+  border-top: 3px solid;
+  padding-top: 0.4rem;
+}
+.team-a {
+  border-color: #e1e6ae;
+}
+.team-b {
+  border-color: #f4d2bc;
+}
+.team-a .eyebrow,
+.team-a .score {
+  color: #e1e6ae;
+}
+.team-b .eyebrow,
+.team-b .score {
+  color: #f4d2bc;
+}
+.service {
+  padding: 0.75rem;
+  border-left: 3px solid var(--clay);
+}
+.result {
+  font: 400 1.6rem var(--font-display);
+}

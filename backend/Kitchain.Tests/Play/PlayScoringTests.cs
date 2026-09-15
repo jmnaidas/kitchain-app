@@ -7,7 +7,7 @@ public sealed class PlayScoringTests
     private static readonly DateTimeOffset Now = new(2026, 9, 9, 0, 0, 0, TimeSpan.Zero);
     private static PlaySession Session()
     {
-        var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 2, null, Now);
+        var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 2, null, Now, PlaySessionMode.LiveScoring);
         for (var i = 1; i <= 14; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
         return session;
@@ -49,7 +49,7 @@ public sealed class PlayScoringTests
     }
 
     [Fact]
-    public void Winning_team_B_rotates_existing_queue_once_and_leaves_other_court_unchanged()
+    public void Winning_team_B_holds_result_until_confirmation_and_leaves_other_court_unchanged()
     {
         var session = Session();
         var match = session.Matches.Single(m => m.CourtNumber == 2);
@@ -60,8 +60,13 @@ public sealed class PlayScoringTests
         session.RecordRally(match.Id, PlayTeam.B, Now.AddMinutes(1));
         Assert.Equal(11, match.TeamBScore);
         Assert.Equal(Now.AddMinutes(1), match.CompletedAt);
+        Assert.True(match.IsCurrent);
+        Assert.Equal(PlayTeam.B, match.Winner);
+        Assert.Equal(2, session.Matches.Count);
+        Assert.Equal(queue, session.WaitingQueue.Select(p => p.Id));
+        session.StartNextGame(match.Id, session.NextLineup(match.Id).Select(p => p.Id).ToArray(), false, Now.AddMinutes(1));
         var replacement = session.Matches.Single(m => m.CourtNumber == 2 && m.Status == PlayMatchStatus.Active);
-        Assert.Equal(queue.Take(4), replacement.Players.OrderBy(p => p.Position).Select(p => p.PlayerId));
+        Assert.Equal(queue.Take(4).Order(), replacement.Players.Select(p => p.PlayerId).Order());
         Assert.Equal((0, 0, PlayTeam.A, 2), (replacement.TeamAScore, replacement.TeamBScore, replacement.ServingTeam, replacement.CurrentServerNumber));
         Assert.Equal(queue.Skip(4).Concat(returning), session.WaitingQueue.Select(p => p.Id));
         Assert.Equal((PlayMatchStatus.Active, 0, 0), (other.Status, other.TeamAScore, other.TeamBScore));
@@ -75,8 +80,8 @@ public sealed class PlayScoringTests
     {
         var session = Session();
         var match = session.Matches.First();
-        session.CorrectScore(match.Id, 15, 13, PlayTeam.B, 1, Now);
-        Assert.Equal((15, 13, PlayTeam.B, 1), (match.TeamAScore, match.TeamBScore, match.ServingTeam, match.CurrentServerNumber));
+        session.CorrectScore(match.Id, 14, 13, PlayTeam.B, 1, Now);
+        Assert.Equal((14, 13, PlayTeam.B, 1), (match.TeamAScore, match.TeamBScore, match.ServingTeam, match.CurrentServerNumber));
         Assert.Equal(PlayMatchStatus.Active, match.Status);
         Assert.Throws<ArgumentException>(() => session.CorrectScore(match.Id, -1, 0, PlayTeam.A, 1, Now));
         Assert.Throws<ArgumentException>(() => session.CorrectScore(match.Id, 0, -1, PlayTeam.A, 1, Now));
@@ -84,7 +89,7 @@ public sealed class PlayScoringTests
         Assert.Throws<ArgumentException>(() => session.CorrectScore(match.Id, 0, 0, PlayTeam.A, 3, Now));
         Assert.Throws<ArgumentException>(() => session.RecordRally(match.Id, (PlayTeam)99, Now));
         Assert.Throws<PlayConflictException>(() => session.RecordRally(Guid.NewGuid(), PlayTeam.A, Now));
-        Assert.Equal((15, 13, PlayTeam.B, 1), (match.TeamAScore, match.TeamBScore, match.ServingTeam, match.CurrentServerNumber));
+        Assert.Equal((14, 13, PlayTeam.B, 1), (match.TeamAScore, match.TeamBScore, match.ServingTeam, match.CurrentServerNumber));
         session.End(Now);
         Assert.Throws<PlayConflictException>(() => session.RecordRally(match.Id, PlayTeam.A, Now));
         Assert.Throws<PlayConflictException>(() => session.CorrectScore(match.Id, 0, 0, PlayTeam.A, 1, Now));

@@ -36,14 +36,52 @@
         @if (room.status === 'Draft') {
           <div class="draft">
             <p>Gather your players, then make it official.</p>
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="blocked()"
+              (click)="detailsErrors.set({}); editingDetails.set(room)"
+            >
+              Edit Session
+            </button>
             <button class="primary" type="button" [disabled]="blocked()" (click)="start()">
               {{ busy() === 'start' ? 'Starting…' : 'Start Session' }}
             </button>
           </div>
         } @else if (room.status === 'Ended') {
-          <p class="ended">This session has ended. The roster and queue are view-only.</p>
+          <p class="ended">
+            This session has ended. The room is view-only. Open Match History for completed games.
+          </p>
         } @else {
           <p class="active-note">Session active. Everyone’s turn, in sight.</p>
+          @if (confirmEnd()) {
+            <div role="group" aria-label="End session confirmation">
+              <p>
+                End {{ room.name }}? This will stop new games and mark the session as finished. The
+                final state remains viewable.
+              </p>
+              <button
+                class="secondary"
+                type="button"
+                [disabled]="blocked()"
+                (click)="confirmEnd.set(false)"
+              >
+                Cancel
+              </button>
+              <button class="primary" type="button" [disabled]="blocked()" (click)="endSession()">
+                End Session
+              </button>
+            </div>
+          } @else {
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="blocked()"
+              (click)="confirmEnd.set(true)"
+            >
+              End Session
+            </button>
+          }
         }
         <button
           class="refresh"
@@ -54,6 +92,17 @@
           {{ refreshing() ? 'Refreshing…' : 'Refresh' }}
         </button>
       </div>
+      @if (room.status === 'Draft') {
+        @if (editingDetails(); as draft) {
+          <app-play-session-form
+            [initial]="draft"
+            [disabled]="blocked()"
+            [serverErrors]="detailsErrors()"
+            (save)="editDetails($event)"
+            (cancelEdit)="editingDetails.set(null)"
+          />
+        }
+      }
       <div class="feedback" aria-live="polite" aria-atomic="true">
         @if (busy()) {
           <p role="status">
@@ -100,7 +149,10 @@
           </form>
           <div class="fair-note">
             <p class="eyebrow">A fair turn for everyone</p>
-            <p>New arrivals join the back. Taking a break? Rejoin at the back when you’re ready.</p>
+            <p>
+              Playing opportunities guide fair rotation. Take a break during an Active session and
+              rejoin when ready.
+            </p>
           </div>
         </aside>
         <section
@@ -129,16 +181,35 @@
             >
               Players <span>{{ room.players.length }}</span>
             </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="view() === 'history'"
+              (click)="view.set('history')"
+            >
+              Match History
+            </button>
           </nav>
           @if (view() === 'courts') {
             <app-play-courts
               [session]="room"
               [disabled]="blocked()"
               (finish)="finishGame($event)"
+              (startNext)="startNextGame($event)"
               (rally)="recordRally($event)"
+              (callOut)="editCallOut($event)"
               (correction)="correctScore($event)"
               [correctionSaved]="correctionSaved()"
             />
+          } @else if (view() === 'history') {
+            <h2>Match History</h2>
+            <p class="muted">
+              Completed games, newest first. Counts reflect recorded rallies only.
+            </p>
+            @for (match of room.matchHistory; track match.id) {
+              <app-play-match-summary [match]="match" />
+            } @empty {
+              <p>No completed matches yet.</p>
+            }
           } @else if (!room.players.length) {
             <div class="empty">
               <p class="eyebrow">Room for a good game</p>
@@ -151,47 +222,32 @@
               }
             </div>
           } @else if (view() === 'queue') {
-            @if (nextUp().length) {
-              <section class="next-up" aria-labelledby="next-title">
+            @if (room.waitingQueue.length) {
+              <section aria-labelledby="waiting-title">
                 <div class="section-title">
-                  <h2 id="next-title">
-                    {{ room.status === 'Ended' ? 'First in queue' : 'Next up' }}
-                  </h2>
-                  <span>First in line</span>
+                  <h2 id="waiting-title">Waiting players</h2>
+                  <span>{{ room.waitingQueue.length }} available</span>
                 </div>
+                <p class="muted">
+                  Fewer missed opportunities, varied groups when fairness allows, and varied teams.
+                  View Courts for the recommended next game.
+                </p>
                 <app-play-player-list
-                  [players]="nextUp()"
+                  [players]="room.waitingQueue"
                   [positions]="positions()"
-                  [featured]="true"
                   [disabled]="blocked()"
+                  [draft]="room.status === 'Draft'"
+                  [completedPlayers]="completedPlayers()"
                   (stateChange)="changePlayer($event)"
+                  (renamePlayer)="renameGuest($event)"
+                  (removePlayer)="removeGuest($event)"
                 />
-                @if (nextUp().length < 4 && room.status !== 'Ended') {
-                  <p class="muted">
-                    {{ 4 - nextUp().length }} more
-                    {{ nextUp().length === 3 ? 'player makes' : 'players make' }} a group of four.
-                  </p>
-                }
               </section>
-              @if (waiting().length) {
-                <section aria-labelledby="waiting-title">
-                  <div class="section-title">
-                    <h2 id="waiting-title">Waiting</h2>
-                    <span>{{ waiting().length }} in line</span>
-                  </div>
-                  <app-play-player-list
-                    [players]="waiting()"
-                    [positions]="positions()"
-                    [disabled]="blocked()"
-                    (stateChange)="changePlayer($event)"
-                  />
-                </section>
-              }
             } @else {
               <div class="empty">
                 <h2>A moment between games.</h2>
                 <p>
-                  No one is waiting right now. Check Players to see who’s playing or taking a break.
+                  No one is waiting. Check Courts for completed games or Players for the whole crew.
                 </p>
               </div>
             }
@@ -214,6 +270,10 @@
               [positions]="positions()"
               [disabled]="blocked()"
               (stateChange)="changePlayer($event)"
+              [draft]="room.status === 'Draft'"
+              [completedPlayers]="completedPlayers()"
+              (renamePlayer)="renameGuest($event)"
+              (removePlayer)="removeGuest($event)"
             />
           }
         </section>

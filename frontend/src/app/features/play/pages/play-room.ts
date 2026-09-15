@@ -19,21 +19,34 @@ import { Observable, Subscription, switchMap, tap } from 'rxjs';
 import { PlayPlayerList, PlayerStateChange } from '../components/play-player-list';
 import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
+import { PlayMatchSummary } from '../components/play-match-summary';
+import { PlaySessionForm } from '../components/play-session-form';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayApi } from '../data-access/play-api';
 import { PlayLive, PlayLiveStatus } from '../data-access/play-live';
 import { playIssue } from '../data-access/play-errors';
 import {
   normalizeCode,
+  CreatePlaySession,
+  NextPlayGame,
   PlayScoreCorrection,
   PlaySession,
   PlayTeam,
+  PlayCallOutChange,
   validCode,
 } from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-room',
-  imports: [RouterLink, DatePipe, PlayPlayerList, PlaySessionHeader, PlayCourts],
+  imports: [
+    RouterLink,
+    DatePipe,
+    PlayPlayerList,
+    PlaySessionHeader,
+    PlayCourts,
+    PlaySessionForm,
+    PlayMatchSummary,
+  ],
   templateUrl: './play-room.html',
   styleUrl: './play-room.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,6 +71,16 @@ export class PlayRoom {
   private readRequest?: Subscription;
   private mutationRequest?: Subscription;
   protected readonly session = signal<PlaySession | null>(null);
+  protected readonly editingDetails = signal<PlaySession | null>(null);
+  protected readonly detailsErrors = signal<Record<string, string>>({});
+  protected readonly confirmEnd = signal(false);
+  protected readonly completedPlayers = computed(() =>
+    Object.fromEntries(
+      (this.session()?.currentMatches ?? [])
+        .filter((match) => match.status === 'Completed')
+        .flatMap((match) => match.players.map((player) => [player.playerId, true])),
+    ),
+  );
   protected readonly correctionSaved = signal(0);
   protected readonly state = signal<'loading' | 'ready' | 'error' | 'not-found'>('loading');
   protected readonly refreshing = signal(false);
@@ -69,10 +92,10 @@ export class PlayRoom {
   protected readonly shareFallback = signal('');
   protected readonly guestName = signal('');
   protected readonly nameError = signal('');
-  protected readonly view = signal<'courts' | 'queue' | 'players'>('queue');
+  protected readonly view = signal<'courts' | 'queue' | 'players' | 'history'>('queue');
   protected readonly playerCourts = computed(() =>
     Object.fromEntries(
-      (this.session()?.activeMatches ?? []).flatMap((match) =>
+      (this.session()?.currentMatches ?? []).flatMap((match) =>
         match.players.map((player) => [player.playerId, match.courtNumber]),
       ),
     ),
@@ -86,8 +109,6 @@ export class PlayRoom {
       this.session()?.status === 'Ended',
   );
   // The server's array order is authoritative. Tickets are never sorted or changed here.
-  protected readonly nextUp = computed(() => this.session()?.waitingQueue.slice(0, 4) ?? []);
-  protected readonly waiting = computed(() => this.session()?.waitingQueue.slice(4) ?? []);
   protected readonly positions = computed(() =>
     Object.fromEntries(
       (this.session()?.waitingQueue ?? []).map((player, index) => [player.id, index + 1]),
@@ -130,6 +151,8 @@ export class PlayRoom {
       this.shareNotice.set('');
       this.shareFallback.set('');
       this.view.set('queue');
+      this.confirmEnd.set(false);
+      this.editingDetails.set(null);
       this.title.setTitle('Session Room | Kitchain');
       onCleanup(() => {
         this.stopLive();
@@ -255,16 +278,55 @@ export class PlayRoom {
       });
   }
 
+  protected editDetails(input: CreatePlaySession) {
+    if (this.session()?.status !== 'Draft') return;
+    this.detailsErrors.set({});
+    this.change('details', this.api.edit(this.code, input), 'Session details updated.', () =>
+      this.editingDetails.set(null),
+    );
+  }
   protected start() {
     if (this.session()?.status !== 'Draft') return;
     this.change('start', this.api.start(this.code), 'Session started. Your crew is ready.');
+  }
+  protected renameGuest(intent: { playerId: string; displayName: string }) {
+    if (this.session()?.status !== 'Draft') return;
+    this.change(
+      'rename:' + intent.playerId,
+      this.api.renameGuest(this.code, intent.playerId, intent.displayName),
+      'Player name updated.',
+    );
+  }
+  protected removeGuest(playerId: string) {
+    if (this.session()?.status !== 'Draft') return;
+    this.change(
+      'remove:' + playerId,
+      this.api.removeGuest(this.code, playerId),
+      'Player removed from the Draft roster.',
+    );
+  }
+  protected endSession() {
+    if (this.session()?.status !== 'Active') return;
+    this.change(
+      'end',
+      this.api.end(this.code),
+      'Session ended. The final state remains viewable.',
+      () => this.confirmEnd.set(false),
+    );
+  }
+  protected startNextGame(intent: { matchId: string; lineup: NextPlayGame }) {
+    this.change(
+      'next:' + intent.matchId,
+      this.api.startNext(this.code, intent.matchId, intent.lineup),
+      'Next game started. Courts and queue are up to date.',
+    );
   }
   protected finishGame(matchId: string) {
     if (this.session()?.status !== 'Active') return;
     this.change(
       `finish:${matchId}`,
       this.api.finish(this.code, matchId),
-      'Game finished. Courts and queue are up to date.',
+      'Game complete. Review the next lineup when ready.',
     );
   }
   protected recordRally(intent: { matchId: string; winner: PlayTeam }) {
@@ -272,6 +334,14 @@ export class PlayRoom {
       `rally:${intent.matchId}`,
       this.api.rally(this.code, intent.matchId, intent.winner),
       'Rally recorded. Score, service and courts are up to date.',
+    );
+  }
+  protected editCallOut(intent: PlayCallOutChange) {
+    if (this.session()?.mode !== 'LiveScoring' || this.session()?.status !== 'Active') return;
+    this.change(
+      `call-out:${intent.rallyId}`,
+      this.api.editCallOut(this.code, intent.matchId, intent.rallyId, intent.edit),
+      intent.edit.callOut ? 'Rally call-out updated.' : 'Rally call-out removed.',
     );
   }
   protected correctScore(intent: { matchId: string; score: PlayScoreCorrection }) {
@@ -283,6 +353,7 @@ export class PlayRoom {
     );
   }
   protected changePlayer(change: PlayerStateChange) {
+    if (this.session()?.status !== 'Active') return;
     const { player, action } = change;
     this.change(
       `${action}:${player.id}`,
@@ -320,6 +391,7 @@ export class PlayRoom {
   private changeFailed(error: HttpErrorResponse) {
     const issue = playIssue(error, 'change');
     this.problem.set(issue.message);
+    this.detailsErrors.set(issue.fields);
     this.nameError.set(issue.fields['displayName'] ?? '');
     if (error.status === 409 || error.status === 404) {
       // A single corrective read handles a stale room; there is no polling.

@@ -20,6 +20,7 @@ public sealed class PlaySessionServiceTests
         Assert.NotEqual(store.Attempts[0].Id, result.Id);
         Assert.Equal("GHJKLM", result.JoinCode);
         Assert.Equal(PlaySessionStatus.Draft, result.Status);
+        Assert.Equal(PlaySessionMode.QueueOnly, result.Mode);
         Assert.Equal(11, result.GameTo);
         Assert.Empty(result.WaitingQueue);
     }
@@ -31,6 +32,16 @@ public sealed class PlaySessionServiceTests
         var service = new PlaySessionService(store, new SequenceCodes("ABCDEF", "ABCDEF", "ABCDEF", "ABCDEF", "ABCDEF"));
         await Assert.ThrowsAsync<PlayConflictException>(() => service.CreateAsync(Input, default));
         Assert.Equal(5, store.Attempts.Count);
+    }
+
+    [Fact]
+    public async Task Selected_live_scoring_mode_is_stored_and_returned()
+    {
+        var store = new CollisionStore(0);
+        var result = await new PlaySessionService(store, new SequenceCodes("ABCDEF"))
+            .CreateAsync(Input with { Mode = PlaySessionMode.LiveScoring }, default);
+        Assert.Equal(PlaySessionMode.LiveScoring, result.Mode);
+        Assert.Equal(PlaySessionMode.LiveScoring, Assert.Single(store.Attempts).Mode);
     }
 
     internal sealed class SequenceCodes(params string[] codes) : IPlayJoinCodeGenerator

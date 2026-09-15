@@ -30,9 +30,9 @@ public sealed class PlayLiveTests
         var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
         var player = store.Session.Players.Last();
         await controller.AddGuest(" abcdef ", new AddPlayGuest("Late"), default);
+        await controller.Start("ABCDEF", default);
         await controller.Rest("ABCDEF", player.Id, default);
         await controller.Rejoin("ABCDEF", player.Id, default);
-        await controller.Start("ABCDEF", default);
         var match = store.Session.Matches.Single();
         await controller.FinishGame("ABCDEF", match.Id, default);
         Assert.Equal(5, notifier.Codes.Count);
@@ -59,9 +59,55 @@ public sealed class PlayLiveTests
         Assert.Equal(new[] { "Session:ABCDEF", "Session:GHJKLM" }, clients.Targets);
     }
 
+    [Fact]
+    public async Task Roster_completion_next_game_and_end_notify_only_after_success()
+    {
+        var store = new Store();
+        var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
+        var player = store.Session.Players.Last();
+        await controller.RenameGuest("ABCDEF", player.Id, new AddPlayGuest("Renamed"), default);
+        await controller.RemoveGuest("ABCDEF", player.Id, default);
+        Assert.Equal(2, notifier.Codes.Count);
+        for (var i = 5; i <= 8; i++) store.Session.AddGuest($"Replacement {i}", store.Session.UpdatedAt);
+        await controller.Start("ABCDEF", default);
+        var match = store.Session.Matches.Single();
+        await controller.FinishGame("ABCDEF", match.Id, default);
+        var request = new StartNextPlayGame { PlayerIds = store.Session.NextLineup(match.Id).Select(p => p.Id).ToArray() };
+        await controller.StartNextGame("ABCDEF", match.Id, request, default);
+        Assert.Equal(5, notifier.Codes.Count);
+        await controller.StartNextGame("ABCDEF", match.Id, request, default);
+        await controller.RenameGuest("ABCDEF", store.Session.Players.First().Id, new AddPlayGuest("Invalid"), default);
+        Assert.Equal(5, notifier.Codes.Count);
+        await controller.End("ABCDEF", default);
+        Assert.Equal(6, notifier.Codes.Count);
+        await controller.End("ABCDEF", default);
+        await controller.RemoveGuest("ABCDEF", store.Session.Players.First().Id, default);
+        Assert.Equal(6, notifier.Codes.Count);
+    }
+
+    [Fact]
+    public async Task Draft_details_notify_after_success_but_invalid_and_active_edits_do_not()
+    {
+        var store = new Store();
+        var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
+        var input = PlaySessionServiceTests.Input with { Name = "Overnight", StartTime = new(23, 0), EndDate = new(2026, 9, 11), EndTime = new(2, 0), MaximumPlayers = 8 };
+        await controller.Edit("ABCDEF", input, default);
+        Assert.Single(notifier.Codes);
+        Assert.Equal(input.EndDate, store.Session.EndDate);
+        await controller.Edit("ABCDEF", input with { MaximumPlayers = 1 }, default);
+        Assert.Single(notifier.Codes);
+        await controller.Start("ABCDEF", default);
+        await controller.Edit("ABCDEF", input, default);
+        Assert.Equal(2, notifier.Codes.Count);
+    }
+
     private sealed class Store : IPlaySessionStore
     {
-        public PlaySession Session { get; } = new(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 1, null, DateTimeOffset.UtcNow);
+        public PlaySession Session { get; } = new(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 1, null, DateTimeOffset.UtcNow, PlaySessionMode.LiveScoring);
         public bool Saved { get; private set; }
         public Store() { for (var i = 1; i <= 5; i++) Session.AddGuest($"Player {i}", Session.UpdatedAt); }
         public Task<bool> TryAddAsync(PlaySession session, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -92,6 +138,33 @@ public sealed class PlayLiveTests
         await controller.RecordRally("ABCDEF", match.Id, new RecordPlayRally { Winner = PlayTeam.A }, default);
         await controller.CorrectScore("ABCDEF", match.Id, new CorrectPlayScore { TeamAScore = 0, TeamBScore = 0, ServingTeam = PlayTeam.A, CurrentServerNumber = 2 }, default);
         Assert.Equal(2, notifier.Codes.Count);
+    }
+
+    [Fact]
+    public async Task Rally_and_call_out_edits_notify_after_save_and_stale_call_outs_do_not_notify()
+    {
+        var store = new Store();
+        store.Session.Start(store.Session.UpdatedAt);
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(
+            new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF")),
+            NullLogger<PlaySessionsController>.Instance, notifier);
+        var match = store.Session.Matches.Single();
+        await controller.RecordRally("ABCDEF", match.Id, new RecordPlayRally { Winner = PlayTeam.B }, default);
+        var rally = Assert.Single(match.Rallies);
+        Assert.False(rally.PointAwarded);
+        Assert.Single(notifier.Codes);
+        await controller.EditRallyCallOut("ABCDEF", match.Id, rally.Id, new EditPlayRallyCallOut { CallOut = PlayRallyCallOut.Drive }, default);
+        Assert.Equal(2, notifier.Codes.Count);
+        await controller.EditRallyCallOut("ABCDEF", match.Id, rally.Id, new EditPlayRallyCallOut { CallOut = PlayRallyCallOut.Out }, default);
+        Assert.Equal(2, notifier.Codes.Count);
+        Assert.Equal(PlayRallyCallOut.Drive, rally.CallOut);
+        await controller.EditRallyCallOut("ABCDEF", match.Id, rally.Id, new EditPlayRallyCallOut { CallOut = PlayRallyCallOut.Lob, ExpectedCallOut = PlayRallyCallOut.Drive }, default);
+        await controller.EditRallyCallOut("ABCDEF", match.Id, rally.Id, new EditPlayRallyCallOut { ExpectedCallOut = PlayRallyCallOut.Lob }, default);
+        Assert.Equal(4, notifier.Codes.Count);
+        Assert.Null(rally.CallOut);
+        Assert.Single(match.Rallies);
+        Assert.All(notifier.Codes, value => Assert.Equal("ABCDEF", value));
     }
 
     private sealed class RecordingNotifier(Store store) : IPlaySessionNotifier

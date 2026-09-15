@@ -83,3 +83,24 @@ button:disabled {
     padding-inline: 0.35rem;
   }
 }
+
+li:has(app-play-draft-player) {
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  row-gap: 0;
+  padding-block: 0.65rem;
+}
+.player-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 0.35rem;
+}
+.player-meta app-play-draft-player:has(form, [role='group']) {
+  flex-basis: 100%;
+  min-width: 0;
+}
+@media (max-width: 400px) {
+  li:has(app-play-draft-player) {
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+  }
+}

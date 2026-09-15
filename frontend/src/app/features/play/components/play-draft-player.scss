@@ -1,0 +1,60 @@
+:host {
+  display: block;
+}
+form,
+[role='group'] {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+}
+label {
+  font-size: 0.85rem;
+}
+input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  color: var(--forest);
+  border: 1px solid var(--border);
+}
+button {
+  min-height: 2.75rem;
+  padding: 0.4rem 0.65rem;
+  margin-right: 0.4rem;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+p {
+  margin-top: 0;
+}
+[role='alert'] {
+  font-size: 0.85rem;
+}
+.roster-action {
+  min-height: 2rem;
+  min-width: 2.75rem;
+  padding: 0.2rem 0.35rem;
+  margin-right: 0.25rem;
+  border-color: transparent;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .roster-action {
+    min-height: 2.75rem;
+  }
+}

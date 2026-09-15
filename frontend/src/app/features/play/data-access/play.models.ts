@@ -1,6 +1,41 @@
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
 export type PlayTeam = 'A' | 'B';
+export type PlaySessionMode = 'QueueOnly' | 'LiveScoring';
+export type PlayRallyCallOut =
+  'Drive' | 'Dink' | 'Lob' | 'Fault' | 'Out' | 'Kitchen' | 'ServiceBreak';
+export interface PlayRallyEvent {
+  id: string;
+  matchId: string;
+  sequence: number;
+  winner: PlayTeam;
+  pointAwarded: boolean;
+  callOut: PlayRallyCallOut | null;
+  teamAScore: number;
+  teamBScore: number;
+  servingTeam: PlayTeam;
+  currentServerNumber: number;
+  createdAt: string;
+}
+export interface PlayCallOutEdit {
+  callOut: PlayRallyCallOut | null;
+  expectedCallOut: PlayRallyCallOut | null;
+}
+export interface PlayCallOutChange {
+  matchId: string;
+  rallyId: string;
+  edit: PlayCallOutEdit;
+}
+export interface NextPlayGame {
+  playerIds: string[];
+  overrideLineup: boolean;
+}
+export interface PlayLineupPlayer {
+  playerId: string;
+  displayName: string;
+  team: PlayTeam;
+  position: number;
+}
 
 export interface PlayScoreCorrection {
   teamAScore: number;
@@ -10,9 +45,14 @@ export interface PlayScoreCorrection {
 }
 
 export interface PlayMatch {
+  rallies: PlayRallyEvent[];
   id: string;
   courtNumber: number;
-  status: 'Active';
+  status: 'Active' | 'Completed';
+  completedAt: string | null;
+  winner: PlayTeam | null;
+  nextLineup: PlayLineupPlayer[];
+  eligiblePlayers: PlayPlayer[];
   startedAt: string;
   teamAScore: number;
   teamBScore: number;
@@ -33,10 +73,14 @@ export interface PlayPlayer {
 }
 
 export interface PlaySession {
+  matchHistory: PlayMatchSummary[];
+  mode: PlaySessionMode;
+  currentMatches: PlayMatch[];
   id: string;
   joinCode: string;
   name: string;
   sessionDate: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   numberOfCourts: number;
@@ -53,9 +97,26 @@ export interface PlaySession {
   activeMatches: PlayMatch[];
 }
 
+export interface PlayMatchSummary {
+  id: string;
+  courtNumber: number;
+  players: PlayLineupPlayer[];
+  startedAt: string;
+  completedAt: string | null;
+  teamAScore: number | null;
+  teamBScore: number | null;
+  winner: PlayTeam | null;
+  totalRallies: number | null;
+  taggedRallies: number | null;
+  callOutCounts: { callOut: PlayRallyCallOut; count: number }[];
+  rallies: PlayRallyEvent[];
+}
+
 export interface CreatePlaySession {
+  mode: PlaySessionMode;
   name: string;
   date: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   numberOfCourts: number;
