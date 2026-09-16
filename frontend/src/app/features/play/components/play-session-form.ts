@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import {
   CreatePlaySession,
   localDate,
@@ -8,14 +8,19 @@ import {
   rotationStyles,
 } from '../data-access/play.models';
 
+import { PlayConfiguration } from '../data-access/play-presets';
+import { PlayPresetPicker } from './play-preset-picker';
+
 @Component({
   selector: 'app-play-session-form',
+  imports: [PlayPresetPicker],
   host: { class: 'session-form' },
   templateUrl: './play-session-form.html',
   styleUrl: '../pages/play-form.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlaySessionForm {
+  readonly allowPresets = input(false);
   readonly initial = input<PlaySession | null>(null);
   readonly disabled = input(false);
   readonly serverErrors = input<Record<string, string>>({});
@@ -23,6 +28,17 @@ export class PlaySessionForm {
   readonly cancelEdit = output<void>();
   protected readonly rotationStyles = rotationStyles;
   protected readonly rotationMode = signal<PlayRotationMode>('FairRotation');
+  protected readonly courtCount = signal('1');
+  protected readonly playerLimit = signal('');
+  protected readonly configuration = computed<PlayConfiguration>(() => ({
+    mode: this.mode(), rotationMode: this.rotationMode(), numberOfCourts: Number(this.courtCount()),
+    maximumPlayers: this.playerLimit().trim() ? Number(this.playerLimit()) : null,
+  }));
+  protected applyConfiguration(config: PlayConfiguration) {
+    this.mode.set(config.mode); this.rotationMode.set(config.rotationMode);
+    this.courtCount.set(String(config.numberOfCourts)); this.playerLimit.set(config.maximumPlayers === null ? '' : String(config.maximumPlayers));
+    this.errors.update(errors => ({ ...errors, numberOfCourts: '', maximumPlayers: '', rotationMode: '' }));
+  }
   protected readonly today = localDate();
   protected readonly mode = signal<PlaySessionMode>('QueueOnly');
   protected readonly endDate = signal(this.today);
@@ -33,6 +49,8 @@ export class PlaySessionForm {
     effect(() => {
       const initial = this.initial();
       this.mode.set(initial?.mode ?? 'QueueOnly');
+      this.courtCount.set(String(initial?.numberOfCourts ?? 1));
+      this.playerLimit.set(initial?.maximumPlayers == null ? '' : String(initial.maximumPlayers));
       this.rotationMode.set(initial?.rotationMode ?? 'FairRotation');
       this.endDate.set(initial?.endDate ?? this.today);
       this.endDateEdited = initial !== null;

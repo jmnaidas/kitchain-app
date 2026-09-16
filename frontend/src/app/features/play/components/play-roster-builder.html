@@ -1,0 +1,65 @@
+<details>
+  <summary>Quick add players</summary>
+  <p>Reuse names from this browser. Only names are added; every player starts fresh.</p>
+  <fieldset [disabled]="disabled() || saving()">
+    <legend class="sr-only">Choose reusable players</legend>
+    <nav aria-label="Quick add sources">
+      <button type="button" [attr.aria-pressed]="source() === 'recent'" (click)="tab('recent')">Recent</button>
+      <button type="button" [attr.aria-pressed]="source() === 'groups'" (click)="tab('groups')">Groups</button>
+      <button type="button" [attr.aria-pressed]="source() === 'previous'" (click)="tab('previous')">Previous</button>
+    </nav>
+    @if (source() === 'groups') {
+      @if (groups.items().length) {
+        <label>Saved group<select aria-label="Saved group" [value]="groupId()" (change)="choose($event)">
+          <option value="" [selected]="!groupId()">Choose a group</option>
+          @for (group of groups.items(); track group.id) { <option [value]="group.id" [selected]="groupId() === group.id">{{ group.name }}</option> }
+        </select></label>
+      } @else { <p>No groups saved yet. Save your regular crew for next time.</p> }
+      <div class="actions">
+        <button type="button" (click)="edit(null)">Create group</button>
+        @if (session().players.length) { <button type="button" (click)="edit(null, true)">Save current roster as group</button> }
+        @if (selectedGroup(); as group) {
+          <button type="button" (click)="edit(group)">Edit group</button>
+          <button type="button" (click)="confirmation.set('group')">Delete group</button>
+        }
+      </div>
+      @if (editing()) { <app-play-group-editor [group]="editedGroup()" [names]="seedNames()" (saved)="saved($event)" (cancelEdit)="editing.set(false)" /> }
+    }
+    @if (source() === 'previous') {
+      @if (loading()) { <p role="status">Loading previous rosters…</p> }
+      @else if (!rosters().length) { <p>Previous sessions used on this browser will appear here.</p> }
+      @else {
+        <label>Previous session<select aria-label="Previous session" [value]="previousCode()" (change)="choose($event)">
+          <option value="" [selected]="!previousCode()">Choose a session</option>
+          @for (roster of rosters(); track roster.code) { <option [value]="roster.code" [selected]="previousCode() === roster.code">{{ roster.name }} · {{ roster.code }}{{ roster.unavailable ? ' · unavailable' : '' }}</option> }
+        </select></label>
+        @if (previousCode() && !names().length) { <p>No players available. The session may be empty or temporarily unavailable.</p> }
+      }
+      <div class="actions"><button type="button" [disabled]="loading()" (click)="loadPrevious()">Refresh previous rosters</button>
+        @if (previousCode()) { <button type="button" (click)="forgetRoster()">Forget previous session</button> }
+      </div>
+    }
+    @if (source() === 'recent' && !names().length) { <p>Players you add successfully will appear here.</p> }
+    @if (names().length) {
+      <div class="choices" role="group" aria-label="Players to import">
+        @for (name of names(); track name) {
+          <div class="choice"><label><input type="checkbox" [checked]="selection().includes(name)" (change)="toggle(name)" />
+            <span>{{ name }} @if (already(name)) { <small>· already in roster</small> }</span></label>
+            @if (source() === 'recent') { <button type="button" [attr.aria-label]="'Forget recent player ' + name" (click)="forgetPlayer(name)">Remove</button> }
+          </div>
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" [disabled]="!selection().length" (click)="add()">Add selected ({{ selection().length }})</button>
+        <button type="button" (click)="add(true)">Add all {{ names().length }}</button>
+        @if (source() === 'recent') { <button type="button" (click)="confirmation.set('recent')">Clear Recent Players</button> }
+      </div>
+    }
+    @if (confirmation(); as kind) {
+      <p>{{ kind === 'group' ? 'Delete this saved group?' : 'Clear all Recent Players on this browser?' }} Current session players will stay.</p>
+      <div class="actions"><button type="button" (click)="confirm()">{{ kind === 'group' ? 'Confirm delete group' : 'Confirm clear Recent Players' }}</button><button type="button" (click)="confirmation.set(null)">Cancel deletion</button></div>
+    }
+  </fieldset>
+  @if (message()) { <p role="status">{{ message() }}</p> }
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+</details>

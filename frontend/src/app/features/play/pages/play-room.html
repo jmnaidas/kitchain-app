@@ -147,11 +147,13 @@
               <p class="error" id="name-error">{{ nameError() }}</p>
             </fieldset>
           </form>
+          @if (room.status === 'Draft') {
+            <app-play-roster-builder [session]="room" [disabled]="blocked()" (addPlayers)="importPlayers($event)" />
+          }
           <div class="fair-note">
-            <p class="eyebrow">A fair turn for everyone</p>
+            <p class="eyebrow">Rotation · {{ rotationLabel(room.rotationMode) }}</p>
             <p>
-              Playing opportunities guide fair rotation. Take a break during an Active session and
-              rejoin when ready.
+              {{ rotationDescription(room.rotationMode) }}
             </p>
           </div>
         </aside>

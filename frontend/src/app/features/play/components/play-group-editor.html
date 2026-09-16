@@ -1,0 +1,10 @@
+<form aria-label="Save player group" novalidate (submit)="save($event)">
+  <fieldset [disabled]="busy()">
+    <legend>{{ group() ? 'Edit saved group' : 'New player group' }}</legend>
+    <label>Group name<input aria-label="Group name" maxlength="60" [value]="name()" (input)="name.set($any($event.target).value)" /></label>
+    <label>Players, one per line<textarea aria-label="Group players" rows="5" maxlength="8100" [value]="players()" (input)="players.set($any($event.target).value)"></textarea></label>
+    <p>Up to 100 names. Repeated names are merged. Saving a group does not add players to the session.</p>
+    <div class="actions"><button class="primary" type="submit">Save group</button><button type="button" (click)="cancelEdit.emit()">Cancel group edit</button></div>
+  </fieldset>
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+</form>

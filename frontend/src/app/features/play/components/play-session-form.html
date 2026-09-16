@@ -6,6 +6,9 @@
 >
   <fieldset [disabled]="disabled()">
     <legend class="sr-only">Session details</legend>
+    @if (allowPresets()) {
+      <app-play-preset-picker [configuration]="configuration()" [disabled]="disabled()" (apply)="applyConfiguration($event)" />
+    }
     <p class="muted">All fields are required unless marked optional.</p>
     <fieldset class="session-mode">
       <legend>Session mode</legend>
@@ -143,7 +146,8 @@
           id="court-count"
           name="numberOfCourts"
           type="number"
-          [value]="initial()?.numberOfCourts ?? 1"
+          [value]="courtCount()"
+          (input)="courtCount.set($any($event.target).value)"
           min="1"
           max="2147483647"
           step="1"
@@ -159,7 +163,8 @@
         <input
           id="player-limit"
           name="maximumPlayers"
-          [value]="initial()?.maximumPlayers ?? ''"
+          [value]="playerLimit()"
+          (input)="playerLimit.set($any($event.target).value)"
           type="number"
           min="1"
           max="2147483647"
@@ -173,7 +178,7 @@
         </p>
       </div>
     </div>
-    <p class="form-note">Fair turns are the default. Add your players once the room is ready.</p>
+    <p class="form-note">Fair Rotation is the default. Add your players once the room is ready.</p>
     <div class="form-actions">
       <button class="primary" type="submit">
         {{ disabled() ? 'Saving…' : initial() ? 'Save Session' : 'Create Session →' }}

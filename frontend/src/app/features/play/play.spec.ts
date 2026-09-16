@@ -2,6 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { PLAY_PRESETS, PRESETS_KEY } from './data-access/play-presets';
+import { PLAY_GROUPS, GROUPS_KEY } from './data-access/play-groups';
+import { PLAY_RECENT_PLAYERS, RECENT_PLAYERS_KEY } from './data-access/play-recent-players';
 import { App } from '../../app';
 import { routes } from '../../app.routes';
 import {
@@ -104,6 +107,7 @@ describe('Play experience', () => {
 
   beforeEach(async () => {
     localStorage.removeItem('kitchain.play.recent.v1');
+    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach(key => localStorage.removeItem(key));
     liveEvents = new Subject<PlayLiveEvent>();
     listened = [];
     stopped = [];
@@ -137,6 +141,7 @@ describe('Play experience', () => {
   });
   afterEach(() => {
     localStorage.removeItem('kitchain.play.recent.v1');
+    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach(key => localStorage.removeItem(key));
     http.verify();
   });
   async function navigate(url: string) {
@@ -184,6 +189,146 @@ describe('Play experience', () => {
     Array.from(element.querySelectorAll('app-play-player-list strong'), (e) =>
       e.textContent?.trim(),
     );
+
+
+  function hostValue(selector: string, value: string, event = 'input') {
+    const field = element.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector)!;
+    field.value = value; field.dispatchEvent(new Event(event, { bubbles: true })); fixture.detectChanges();
+  }
+  function openQuick() {
+    element.querySelector<HTMLDetailsElement>('app-play-roster-builder details')!.open = true;
+    fixture.detectChanges();
+  }
+  it('keeps saved presets compact and applies only reusable fields without losing session details', async () => {
+    const preset = await TestBed.inject(PLAY_PRESETS).save('Weekend', { mode: 'LiveScoring', rotationMode: 'SplitTeams', numberOfCourts: 3, maximumPlayers: 24 });
+    await navigate('/play/new');
+    expect(element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')?.open).toBe(false);
+    element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')!.open = true;
+    fill('session-name', 'My special session'); fill('session-date', '2026-09-20');
+    fill('end-date', '2026-09-21'); fill('start-time', '23:00'); fill('end-time', '02:00');
+    hostValue('[aria-label="Saved preset"]', preset.id, 'change'); click('Apply preset');
+    expect(element.querySelector<HTMLInputElement>('#session-name')!.value).toBe('My special session');
+    expect(element.querySelector<HTMLInputElement>('#session-date')!.value).toBe('2026-09-20');
+    expect(element.querySelector<HTMLInputElement>('#end-date')!.value).toBe('2026-09-21');
+    expect(element.querySelector<HTMLInputElement>('#start-time')!.value).toBe('23:00');
+    expect(element.querySelector<HTMLInputElement>('#end-time')!.value).toBe('02:00');
+    expect(element.querySelector<HTMLInputElement>('#court-count')!.value).toBe('3');
+    expect(element.querySelector<HTMLInputElement>('#player-limit')!.value).toBe('24');
+    expect(element.querySelector<HTMLInputElement>('input[name="rotationMode"]:checked')!.value).toBe('SplitTeams');
+    expect(element.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value).toBe('LiveScoring');
+    expect(element.textContent).toContain('Applied Weekend');
+    submit(); const request = http.expectOne(base);
+    expect(request.request.body).toMatchObject({ name: 'My special session', date: '2026-09-20', endDate: '2026-09-21', startTime: '23:00:00', endTime: '02:00:00', numberOfCourts: 3, maximumPlayers: 24, mode: 'LiveScoring', rotationMode: 'SplitTeams' });
+    request.flush({}, { status: 400, statusText: 'Test validation' }); await settle();
+  });
+  it('saves, validates, renames, updates and deletes presets in the existing create form', async () => {
+    await navigate('/play/new');
+    element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')!.open = true;
+    expect(element.textContent).toContain('Save the settings you use often.');
+    click('Save as new preset'); await settle(); expect(element.textContent).toContain('1–60');
+    hostValue('[aria-label="Preset name"]', 'Weekend'); click('Save as new preset'); await settle();
+    expect(TestBed.inject(PLAY_PRESETS).items()).toHaveLength(1);
+    expect(element.querySelector<HTMLSelectElement>('[aria-label="Saved preset"]')!.value).toBe(TestBed.inject(PLAY_PRESETS).items()[0].id);
+    click('Save as new preset'); await settle(); expect(element.textContent).toContain('already saved');
+    hostValue('[aria-label="Preset name"]', 'Sunday'); click('Rename preset'); await settle();
+    expect(TestBed.inject(PLAY_PRESETS).items()[0].name).toBe('Sunday');
+    fill('court-count', '4'); fill('player-limit', '20'); click('Update with current settings'); await settle();
+    expect(TestBed.inject(PLAY_PRESETS).items()[0]).toMatchObject({ numberOfCourts: 4, maximumPlayers: 20 });
+    click('Delete preset'); expect(TestBed.inject(PLAY_PRESETS).items()).toHaveLength(1);
+    click('Confirm delete preset'); await settle(); expect(TestBed.inject(PLAY_PRESETS).items()).toEqual([]);
+    expect(element.querySelector<HTMLInputElement>('#court-count')!.value).toBe('4'); http.expectNone(base);
+  });
+  it('creates normally with storage disabled and reports explicit preset save failure', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Disabled'); });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Disabled'); });
+    try {
+      await navigate('/play/new');
+      hostValue('[aria-label="Preset name"]', 'Weekend'); click('Save as new preset'); await settle();
+      expect(element.textContent).toContain('could not be saved');
+      fill('start-time', '18:00'); fill('end-time', '21:00'); submit();
+      http.expectOne(base).flush(room()); await settle();
+      http.expectOne(base + '/' + code).flush(room()); await settle();
+      expect(element.querySelector('code')?.textContent).toBe(code);
+    } finally { get.mockRestore(); set.mockRestore(); }
+  });
+  it('creates, edits and deletes a saved group without changing the actual roster', async () => {
+    await openRoom(room([crew[0]])); openQuick(); click('Groups');
+    expect(element.textContent).toContain('No groups saved yet'); click('Save current roster as group');
+    expect(element.querySelector<HTMLTextAreaElement>('[aria-label="Group players"]')!.value).toBe('Alex');
+    hostValue('[aria-label="Group name"]', 'Office');
+    hostValue('[aria-label="Group players"]', ' Alex \n alex \n Blair');
+    element.querySelector('form[aria-label="Save player group"]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle(); expect(TestBed.inject(PLAY_GROUPS).items()[0].players.map(p => p.displayName)).toEqual(['Alex', 'Blair']);
+    click('Edit group'); hostValue('[aria-label="Group name"]', 'Office crew'); hostValue('[aria-label="Group players"]', 'Alex\nCasey');
+    element.querySelector('form[aria-label="Save player group"]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle(); expect(TestBed.inject(PLAY_GROUPS).items()[0].name).toBe('Office crew');
+    click('Delete group'); click('Confirm delete group'); await settle();
+    expect(TestBed.inject(PLAY_GROUPS).items()).toEqual([]); expect(queueNames()).toEqual(['Alex']);
+    http.expectNone(request => request.method !== 'GET');
+  });
+  it('imports an entire group sequentially, skips duplicates, and only renders canonical players', async () => {
+    const group = await TestBed.inject(PLAY_GROUPS).save('Office', [' alex ', 'Blair', 'Casey']);
+    await openRoom(room([crew[0]])); openQuick(); click('Groups'); hostValue('[aria-label="Saved group"]', group.id, 'change');
+    expect(element.textContent).toContain('already in roster'); click('Add all 3');
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    expect(queueNames()).toEqual(['Alex']);
+    const first = http.expectOne(base + '/' + code + '/players'); expect(first.request.body).toEqual({ displayName: 'Blair' }); first.flush(crew[1]);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2)));
+    http.expectOne(base + '/' + code + '/players').flush(crew[2]);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 3))); await settle();
+    expect(queueNames()).toEqual(['Alex', 'Blair', 'Casey']); expect(element.textContent).toContain('2 players added · 1 already in roster');
+    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items().map(p => p.displayName)).toEqual(['Casey', 'Blair']);
+  });
+  it('imports selected group members and reports partial failures without phantom entries', async () => {
+    const group = await TestBed.inject(PLAY_GROUPS).save('Office', ['Alex', 'Blair', 'Casey']);
+    await openRoom(); openQuick(); click('Groups'); hostValue('[aria-label="Saved group"]', group.id, 'change');
+    const boxes = element.querySelectorAll<HTMLInputElement>('app-play-roster-builder input[type="checkbox"]'); boxes[0].click(); boxes[2].click(); fixture.detectChanges();
+    click('Add selected (2)'); http.expectOne(base + '/' + code).flush(room());
+    const add = http.expectOne(base + '/' + code + '/players'); expect(add.request.body.displayName).toBe('Alex'); add.flush(crew[0]);
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    const failed = http.expectOne(base + '/' + code + '/players'); expect(failed.request.body.displayName).toBe('Casey'); failed.flush({}, { status: 409, statusText: 'Full' });
+    http.expectOne(base + '/' + code).flush(room([crew[0]])); await settle();
+    expect(queueNames()).toEqual(['Alex']); expect(element.textContent).toContain('1 players added · 0 already in roster · 1 not confirmed');
+    expect(element.textContent).toContain('Import stopped at Casey');
+  });
+  it('remembers successful manual adds, quick-adds recent players, skips duplicates and supports clearing', async () => {
+    await TestBed.inject(PLAY_RECENT_PLAYERS).remember('Blair'); await openRoom();
+    fill('guest-name', 'Alex'); submit(); http.expectOne(base + '/' + code + '/players').flush(crew[0]);
+    http.expectOne(base + '/' + code).flush(room([crew[0]])); await settle();
+    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items().map(p => p.displayName)).toEqual(['Alex', 'Blair']);
+    openQuick(); click('Add all 2'); http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    http.expectOne(base + '/' + code + '/players').flush(crew[1]); http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2))); await settle();
+    expect(element.textContent).toContain('1 players added · 1 already in roster');
+    click('Forget recent player Alex'); await settle(); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
+    click('Clear Recent Players'); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
+    click('Confirm clear Recent Players'); await settle(); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toEqual([]);
+    expect(queueNames()).toEqual(['Alex', 'Blair']);
+  });
+  it('imports previous canonical roster names without copying state or IDs and allows forgetting', async () => {
+    TestBed.inject(RecentPlaySessions).remember('GHJKLM'); await openRoom(room([crew[0]])); openQuick(); click('Previous');
+    http.expectOne(base + '/GHJKLM').flush({ ...room([player('historical-id', 'Alex', null, 'Resting'), player('other-id', 'Blair', null, 'Playing')]), joinCode: 'GHJKLM', name: 'Last weekend', status: 'Ended' }); await settle();
+    hostValue('[aria-label="Previous session"]', 'GHJKLM', 'change'); click('Add all 2');
+    http.expectOne(base + '/' + code).flush(room([crew[0]])); const add = http.expectOne(base + '/' + code + '/players');
+    expect(add.request.body).toEqual({ displayName: 'Blair' }); add.flush(crew[1]);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2))); await settle();
+    expect(queueNames()).toEqual(['Alex', 'Blair']); expect(element.textContent).toContain('1 players added · 1 already in roster');
+    click('Forget previous session'); await settle(); expect(TestBed.inject(RecentPlaySessions).list().some(e => e.code === 'GHJKLM')).toBe(false);
+  });
+  it('keeps empty quick-add compact and only exposes it in Draft', async () => {
+    await openRoom(); expect(element.querySelector<HTMLDetailsElement>('app-play-roster-builder details')!.open).toBe(false);
+    openQuick(); expect(element.textContent).toContain('Players you add successfully will appear here'); click('Previous'); await settle();
+    expect(element.textContent).toContain('Previous sessions used on this browser will appear here');
+    liveEvents.next({ kind: 'changed' }); TestBed.tick(); http.expectOne(base + '/' + code).flush({ ...room(), status: 'Active' }); await settle();
+    expect(element.querySelector('app-play-roster-builder')).toBeNull();
+  });
+  for (const style of rotationStyles) {
+    it('uses the selected rotation description in the room: ' + style.label, async () => {
+      await openRoom({ ...room(), status: 'Active', rotationMode: style.value });
+      expect(element.querySelector('.fair-note')?.textContent).toContain(style.description);
+      expect(element.textContent).not.toContain('A fair turn for everyone');
+      expect(element.textContent).not.toContain('Playing opportunities guide fair rotation');
+    });
+  }
 
   it('defaults to Fair Rotation and presents all four concise rotation choices', async () => {
     await navigate('/play/new');

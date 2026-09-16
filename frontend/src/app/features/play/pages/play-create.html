@@ -8,7 +8,7 @@
   <p role="status">Your session is ready.</p>
   <a class="primary" [routerLink]="['/play/s', code]">Open session →</a>
 } @else {
-  <app-play-session-form [disabled]="busy()" [serverErrors]="errors()" (save)="create($event)" />
+  <app-play-session-form [allowPresets]="true" [disabled]="busy()" [serverErrors]="errors()" (save)="create($event)" />
   @if (problem()) {
     <p role="alert" class="error">{{ problem() }}</p>
   }

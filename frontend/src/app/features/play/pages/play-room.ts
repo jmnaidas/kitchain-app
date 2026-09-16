@@ -23,12 +23,16 @@ import { PlayMatchSummary } from '../components/play-match-summary';
 import { PlayInsights } from '../components/play-insights';
 import { PlaySessionForm } from '../components/play-session-form';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
+import { PlayRosterBuilder } from '../components/play-roster-builder';
+import { PlayRosterImport } from '../data-access/play-roster-import';
+import { PLAY_RECENT_PLAYERS } from '../data-access/play-recent-players';
 import { PlayApi } from '../data-access/play-api';
 import { PlayLive, PlayLiveStatus } from '../data-access/play-live';
 import { playIssue } from '../data-access/play-errors';
 import {
   normalizeCode,
   rotationLabel,
+  rotationDescription,
   CreatePlaySession,
   NextPlayGame,
   PlayScoreCorrection,
@@ -45,6 +49,7 @@ import {
     DatePipe,
     PlayPlayerList,
     PlaySessionHeader,
+    PlayRosterBuilder,
     PlayCourts,
     PlaySessionForm,
     PlayMatchSummary,
@@ -56,6 +61,9 @@ import {
 })
 export class PlayRoom {
   protected readonly rotationLabel = rotationLabel;
+  protected readonly rotationDescription = rotationDescription;
+  private readonly recentPlayers = inject(PLAY_RECENT_PLAYERS);
+  private readonly rosterImport = inject(PlayRosterImport);
   private readonly api = inject(PlayApi);
   private readonly live = inject(PlayLive);
   private liveSubscription?: Subscription;
@@ -264,7 +272,8 @@ export class PlayRoom {
     this.mutationRequest = this.api
       .addPlayer(this.code, name)
       .pipe(
-        tap(() => {
+        tap((player) => {
+          void this.recentPlayers.remember(player.displayName).catch(() => undefined);
           added = true;
           this.guestName.set('');
         }),
@@ -287,6 +296,19 @@ export class PlayRoom {
           } else this.changeFailed(error);
         },
       });
+  }
+
+  protected importPlayers(names: string[]) {
+    if (this.blocked() || this.session()?.status !== 'Draft') return;
+    this.busy.set('import'); this.problem.set(''); this.notice.set('');
+    this.mutationRequest = this.rosterImport.add(this.code, names).subscribe(progress => {
+      if (progress.session) this.accept(progress.session);
+      this.notice.set(progress.added + ' players added · ' + progress.skipped + ' already in roster' +
+        (progress.remaining && progress.done ? ' · ' + progress.remaining + ' not confirmed' : ''));
+      if (progress.done) {
+        this.busy.set(null); this.needsRefresh.set(progress.needsRefresh); this.problem.set(progress.problem);
+      }
+    });
   }
 
   protected editDetails(input: CreatePlaySession) {

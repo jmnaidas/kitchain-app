@@ -24,6 +24,9 @@ export const rotationStyles: { value: PlayRotationMode; label: string; descripti
 export const rotationLabel = (mode: PlayRotationMode) =>
   rotationStyles.find((style) => style.value === mode)?.label ?? 'Fair Rotation';
 
+export const rotationDescription = (mode: PlayRotationMode) =>
+  rotationStyles.find((style) => style.value === mode)?.description ?? rotationStyles[0].description;
+
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
 export type PlayTeam = 'A' | 'B';

@@ -1,0 +1,29 @@
+<details>
+  <summary>Saved presets @if (store.items().length) { ({{ store.items().length }}) }</summary>
+  <p>Reuse your settings. Saved only on this browser.</p>
+  <fieldset [disabled]="disabled() || busy()">
+    @if (store.items().length) {
+      <label>Preset<select aria-label="Saved preset" [value]="selected()" (change)="choose($event)">
+        <option value="" [selected]="!selected()">Choose a preset</option>
+        @for (preset of store.items(); track preset.id) { <option [value]="preset.id" [selected]="selected() === preset.id">{{ preset.name }}</option> }
+      </select></label>
+      <button type="button" [disabled]="!current()" (click)="use()">Apply preset</button>
+    } @else { <p>Save the settings you use often.</p> }
+    <label>Preset name<input aria-label="Preset name" maxlength="60" (keydown.enter)="$event.preventDefault(); save('new')" [value]="name()" (input)="name.set($any($event.target).value)" /></label>
+    <div class="actions">
+      <button type="button" (click)="save('new')">Save as new preset</button>
+      @if (current()) {
+        <button type="button" (click)="save('rename')">Rename preset</button>
+        <button type="button" (click)="save('update')">Update with current settings</button>
+        <button type="button" (click)="confirmDelete.set(true)">Delete preset</button>
+      }
+    </div>
+    @if (confirmDelete()) {
+      <p>Delete this saved preset?</p>
+      <div class="actions"><button type="button" (click)="remove()">Confirm delete preset</button><button type="button" (click)="confirmDelete.set(false)">Keep preset</button></div>
+    }
+  </fieldset>
+  @if (message()) { <p role="status">{{ message() }}</p> }
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+</details>
+@if (applied()) { <p role="status">Applied {{ applied() }}. You can still adjust the settings.</p> }
