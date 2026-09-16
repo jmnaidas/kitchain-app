@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import {
   PlayMatchSummary as MatchSummary,
-  PlayRallyCallOut,
+  callOutLabel,
   PlayTeam,
 } from '../data-access/play.models';
 import { PlayRallyHistory } from './play-rally-history';
@@ -16,6 +16,8 @@ import { PlayRallyHistory } from './play-rally-history';
 })
 export class PlayMatchSummary {
   readonly match = input.required<MatchSummary>();
+  readonly sequence = input<number | null>(null);
+  protected readonly label = callOutLabel;
   protected readonly expanded = signal(false);
   protected readonly sameDay = computed(() => {
     const match = this.match();
@@ -29,8 +31,5 @@ export class PlayMatchSummary {
       .players.filter((p) => p.team === team)
       .map((p) => p.displayName)
       .join(' + ');
-  }
-  protected label(tag: PlayRallyCallOut) {
-    return tag === 'ServiceBreak' ? 'Service break' : tag;
   }
 }

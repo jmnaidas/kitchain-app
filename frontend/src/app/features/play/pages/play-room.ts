@@ -191,6 +191,8 @@ export class PlayRoom {
   }
 
   private accept(session: PlaySession) {
+    if (!this.session() && session.status === 'Active' && session.mode === 'LiveScoring')
+      this.view.set('courts');
     this.recent.remember(session.joinCode);
     this.session.set(session);
     this.state.set('ready');
@@ -300,13 +302,24 @@ export class PlayRoom {
 
   protected importPlayers(names: string[]) {
     if (this.blocked() || this.session()?.status !== 'Draft') return;
-    this.busy.set('import'); this.problem.set(''); this.notice.set('');
-    this.mutationRequest = this.rosterImport.add(this.code, names).subscribe(progress => {
+    this.busy.set('import');
+    this.problem.set('');
+    this.notice.set('');
+    this.mutationRequest = this.rosterImport.add(this.code, names).subscribe((progress) => {
       if (progress.session) this.accept(progress.session);
-      this.notice.set(progress.added + ' players added · ' + progress.skipped + ' already in roster' +
-        (progress.remaining && progress.done ? ' · ' + progress.remaining + ' not confirmed' : ''));
+      this.notice.set(
+        progress.added +
+          ' players added · ' +
+          progress.skipped +
+          ' already in roster' +
+          (progress.remaining && progress.done
+            ? ' · ' + progress.remaining + ' not confirmed'
+            : ''),
+      );
       if (progress.done) {
-        this.busy.set(null); this.needsRefresh.set(progress.needsRefresh); this.problem.set(progress.problem);
+        this.busy.set(null);
+        this.needsRefresh.set(progress.needsRefresh);
+        this.problem.set(progress.problem);
       }
     });
   }

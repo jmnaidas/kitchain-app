@@ -1,171 +1,208 @@
 <h2>On court.</h2>
-@for (court of courts(); track court.number) {
-  <article [attr.aria-label]="'Court ' + court.number">
-    <header>
-      <h3>Court {{ court.number }}</h3>
-      <span>{{
-        court.match
-          ? court.match.status === 'Completed'
-            ? 'Game complete'
-            : 'Playing'
-          : 'Available'
-      }}</span>
-    </header>
-    @if (court.match; as match) {
-      @if (match.status === 'Completed') {
-        <p class="result" role="status">
-          {{ match.winner ? 'Team ' + match.winner + ' wins' : 'Game complete' }}
-        </p>
-      }
-      <div class="teams">
-        <div class="team-a">
-          <p class="eyebrow">Team A</p>
-          @if (session().mode === 'LiveScoring') {
-            <span class="score" aria-label="Team A score">{{ match.teamAScore }}</span>
-          }
-          @for (player of court.teamA; track player.playerId) {
-            <strong>{{ player.displayName }}</strong>
-          }
-        </div>
-        <span class="versus">VS</span>
-        <div class="team-b">
-          <p class="eyebrow">Team B</p>
-          @if (session().mode === 'LiveScoring') {
-            <span class="score" aria-label="Team B score">{{ match.teamBScore }}</span>
-          }
-          @for (player of court.teamB; track player.playerId) {
-            <strong>{{ player.displayName }}</strong>
-          }
-        </div>
-      </div>
-      @if (match.status === 'Active') {
-        @if (session().mode === 'LiveScoring') {
-          <p class="service">
-            Serving: <strong>Team {{ match.servingTeam }}</strong> ·
-            <strong>Server {{ match.currentServerNumber }}</strong>
+@if (session().numberOfCourts > 1) {
+  <nav class="court-links" aria-label="Jump to court">
+    @for (court of courts(); track court.number) {
+      <button type="button" (click)="jumpToCourt(court.number)">Court {{ court.number }}</button>
+    }
+  </nav>
+}
+<div class="court-grid">
+  @for (court of courts(); track court.number) {
+    <article
+      [id]="'play-court-' + court.number"
+      tabindex="-1"
+      [attr.aria-label]="'Court ' + court.number"
+      [attr.aria-busy]="disabled()"
+    >
+      <header>
+        <h3>Court {{ court.number }}</h3>
+        <span>{{
+          court.match
+            ? court.match.status === 'Completed'
+              ? 'Game complete'
+              : 'Playing'
+            : 'Available'
+        }}</span>
+      </header>
+      @if (court.match; as match) {
+        @if (match.status === 'Completed') {
+          <p class="result" role="status">
+            {{
+              match.winner ? 'Team ' + match.winner + ' wins' : 'Game complete · No result recorded'
+            }}
           </p>
         }
-        @if (session().status === 'Active') {
-          @if (session().mode === 'LiveScoring') {
-            <div class="rally-actions" [attr.aria-label]="'Rally winner on Court ' + court.number">
-              <button
-                type="button"
-                [disabled]="disabled() || editing()?.id === match.id"
-                (click)="recordRally(match.id, 'A')"
-              >
-                Team A won rally
-              </button>
-              <button
-                type="button"
-                [disabled]="disabled() || editing()?.id === match.id"
-                (click)="recordRally(match.id, 'B')"
-              >
-                Team B won rally
-              </button>
-            </div>
-            @if (editing(); as draft) {
-              @if (draft.id === match.id) {
-                <app-play-score-editor
-                  [match]="draft"
-                  [disabled]="disabled()"
-                  (save)="correction.emit({ matchId: match.id, score: $event })"
-                  (cancelEdit)="editing.set(null)"
-                />
-              }
+        <div class="teams" role="group" [attr.aria-label]="'Scoreboard on Court ' + court.number">
+          <div class="team-a">
+            <p class="eyebrow">Team A</p>
+            @if (session().mode === 'LiveScoring') {
+              <span class="score" aria-label="Team A score">{{ match.teamAScore }}</span>
             }
-            <button
-              class="secondary-action"
-              type="button"
-              [disabled]="disabled()"
-              (click)="editing.set(match); confirming.set(null)"
-            >
-              Correct score
-            </button>
+            @for (player of court.teamA; track player.playerId) {
+              <strong>{{ player.displayName }}</strong>
+            }
+          </div>
+          <span class="versus">VS</span>
+          <div class="team-b">
+            <p class="eyebrow">Team B</p>
+            @if (session().mode === 'LiveScoring') {
+              <span class="score" aria-label="Team B score">{{ match.teamBScore }}</span>
+            }
+            @for (player of court.teamB; track player.playerId) {
+              <strong>{{ player.displayName }}</strong>
+            }
+          </div>
+        </div>
+        @if (match.status === 'Active') {
+          @if (session().mode === 'LiveScoring') {
+            <p class="service">
+              Serving: <strong>Team {{ match.servingTeam }}</strong> ·
+              <strong>Server {{ match.currentServerNumber }}</strong>
+            </p>
+            <p class="scoring-note">
+              Traditional scoring · Only the serving team scores. Game to {{ session().gameTo }},
+              win by {{ session().winBy }}.
+            </p>
           }
-          @if (confirming() === match.id) {
-            <div
-              class="confirmation"
-              role="group"
-              [attr.aria-label]="'Finish game on Court ' + court.number"
-            >
-              @if (session().mode === 'QueueOnly') {
-                <p>Who won this game?</p>
-                <p>
-                  Team A:
-                  @for (player of court.teamA; track player.playerId; let last = $last) {
-                    {{ player.displayName }}{{ last ? '' : ' + ' }}
-                  }
-                </p>
-                <p>
-                  Team B:
-                  @for (player of court.teamB; track player.playerId; let last = $last) {
-                    {{ player.displayName }}{{ last ? '' : ' + ' }}
-                  }
-                </p>
-                <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'A')">
-                  Team A won
+          @if (session().status === 'Active') {
+            @if (session().mode === 'LiveScoring') {
+              <div
+                class="rally-actions"
+                role="group"
+                [attr.aria-label]="'Rally winner on Court ' + court.number"
+              >
+                <button
+                  type="button"
+                  class="point-a"
+                  [disabled]="disabled() || editing()?.id === match.id"
+                  (click)="recordRally(match.id, 'A')"
+                >
+                  Team A won rally
                 </button>
-                <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'B')">
-                  Team B won
+                <button
+                  type="button"
+                  class="point-b"
+                  [disabled]="disabled() || editing()?.id === match.id"
+                  (click)="recordRally(match.id, 'B')"
+                >
+                  Team B won rally
                 </button>
-                <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
-                  Finish without result
-                </button>
-              } @else {
-                <p>
-                  Finish this game? Its result and players stay on this court until you confirm the
-                  next lineup.
-                </p>
-                <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
-                  Confirm Finish
-                </button>
+              </div>
+              @if (editing(); as draft) {
+                @if (draft.id === match.id) {
+                  <app-play-score-editor
+                    [match]="draft"
+                    [disabled]="disabled()"
+                    (save)="correction.emit({ matchId: match.id, score: $event })"
+                    (cancelEdit)="editing.set(null)"
+                  />
+                }
               }
-              <button type="button" [disabled]="disabled()" (click)="confirming.set(null)">
-                Cancel
+              <button
+                class="secondary-action"
+                type="button"
+                [disabled]="disabled()"
+                (click)="editing.set(match); confirming.set(null)"
+              >
+                Correct score
               </button>
-            </div>
-          } @else {
-            <button
-              type="button"
-              [disabled]="disabled()"
-              (click)="confirming.set(match.id); editing.set(null)"
-              [attr.aria-label]="'Finish game on Court ' + court.number"
-            >
-              {{ session().mode === 'QueueOnly' ? 'Finish Game' : 'Finish Game (override)' }}
-            </button>
+            }
+            @if (confirming() === match.id) {
+              <div
+                class="confirmation"
+                role="group"
+                [attr.aria-label]="'Finish game on Court ' + court.number"
+              >
+                @if (session().mode === 'QueueOnly') {
+                  <p>Who won this game?</p>
+                  <p>
+                    Team A:
+                    @for (player of court.teamA; track player.playerId; let last = $last) {
+                      {{ player.displayName }}{{ last ? '' : ' + ' }}
+                    }
+                  </p>
+                  <p>
+                    Team B:
+                    @for (player of court.teamB; track player.playerId; let last = $last) {
+                      {{ player.displayName }}{{ last ? '' : ' + ' }}
+                    }
+                  </p>
+                  <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'A')">
+                    Team A won
+                  </button>
+                  <button type="button" [disabled]="disabled()" (click)="confirm(match.id, 'B')">
+                    Team B won
+                  </button>
+                  <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
+                    Finish without result
+                  </button>
+                } @else {
+                  <p class="finish-score">
+                    Team A {{ match.teamAScore }} · Team B {{ match.teamBScore }}
+                  </p>
+                  <p>
+                    Finish without a winner? This override keeps the score and records No Result.
+                    Players stay on this court until you confirm the next lineup.
+                  </p>
+                  <button type="button" [disabled]="disabled()" (click)="confirm(match.id)">
+                    Confirm Finish
+                  </button>
+                }
+                <button type="button" [disabled]="disabled()" (click)="confirming.set(null)">
+                  Cancel
+                </button>
+              </div>
+            } @else {
+              <button
+                type="button"
+                [disabled]="disabled()"
+                (click)="confirming.set(match.id); editing.set(null)"
+                [attr.aria-label]="'Finish game on Court ' + court.number"
+              >
+                {{ session().mode === 'QueueOnly' ? 'Finish Game' : 'Finish Game (override)' }}
+              </button>
+            }
           }
-        }
-      } @else if (session().status === 'Active') {
-        <app-play-next-game
-          [match]="match"
-          [rotationMode]="session().rotationMode"
-          [disabled]="disabled()"
-          (startNext)="startNext.emit({ matchId: match.id, lineup: $event })"
-        />
-      }
-      @if (session().mode === 'LiveScoring') {
-        @for (current of [match]; track current.id) {
-          <app-play-rally-history
-            [match]="current"
+        } @else if (session().status === 'Active') {
+          @if (court.summary; as summary) {
+            <p class="completion-note">
+              Finished {{ summary.completedAt | date: 'shortTime' }}
+              @if (summary.totalRallies !== null) {
+                · {{ summary.totalRallies }} recorded rallies · {{ summary.taggedRallies }} tagged
+              }
+            </p>
+          }
+          <app-play-next-game
+            [match]="match"
+            [rotationMode]="session().rotationMode"
             [disabled]="disabled()"
-            [readOnly]="session().status !== 'Active'"
-            (callOut)="callOut.emit($event)"
+            (startNext)="startNext.emit({ matchId: match.id, lineup: $event })"
           />
         }
+        @if (session().mode === 'LiveScoring') {
+          @for (current of [match]; track current.id) {
+            <app-play-rally-history
+              [match]="current"
+              [disabled]="disabled()"
+              [readOnly]="session().status !== 'Active'"
+              (callOut)="callOut.emit($event)"
+            />
+          }
+        }
+      } @else {
+        <p>
+          {{
+            session().status === 'Draft'
+              ? 'Start the session to assign waiting players.'
+              : session().status === 'Ended'
+                ? 'This session has ended.'
+                : 'Waiting for four eligible players.'
+          }}
+        </p>
       }
-    } @else {
-      <p>
-        {{
-          session().status === 'Draft'
-            ? 'Start the session to assign waiting players.'
-            : session().status === 'Ended'
-              ? 'This session has ended.'
-              : 'Waiting for four eligible players.'
-        }}
-      </p>
-    }
-  </article>
-}
+    </article>
+  }
+</div>
 @if (session().numberOfCourts > 8) {
   <nav aria-label="Court pages">
     <button type="button" [disabled]="page() === 0" (click)="page.set(page() - 1)">

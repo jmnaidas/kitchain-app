@@ -20,6 +20,24 @@
             server {{ rally.currentServerNumber }}
           </p>
           @if (!readOnly()) {
+            @if (!expanded() && editing() !== rally.id) {
+              <div
+                class="quick-tags"
+                role="group"
+                [attr.aria-label]="'Optional call-out for rally ' + rally.sequence"
+              >
+                @for (type of types; track type) {
+                  <button
+                    type="button"
+                    [disabled]="disabled()"
+                    [attr.aria-pressed]="rally.callOut === type"
+                    (click)="setCallOut(rally, rally.callOut === type ? null : type)"
+                  >
+                    {{ label(type) }}
+                  </button>
+                }
+              </div>
+            }
             @if (editing() === rally.id) {
               <div class="call-out-editor">
                 <label>

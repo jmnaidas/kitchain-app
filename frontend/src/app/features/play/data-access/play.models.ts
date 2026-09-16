@@ -25,14 +25,27 @@ export const rotationLabel = (mode: PlayRotationMode) =>
   rotationStyles.find((style) => style.value === mode)?.label ?? 'Fair Rotation';
 
 export const rotationDescription = (mode: PlayRotationMode) =>
-  rotationStyles.find((style) => style.value === mode)?.description ?? rotationStyles[0].description;
+  rotationStyles.find((style) => style.value === mode)?.description ??
+  rotationStyles[0].description;
 
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
 export type PlayTeam = 'A' | 'B';
 export type PlaySessionMode = 'QueueOnly' | 'LiveScoring';
 export type PlayRallyCallOut =
-  'Drive' | 'Dink' | 'Lob' | 'Fault' | 'Out' | 'Kitchen' | 'ServiceBreak';
+  'Drive' | 'Dink' | 'Lob' | 'Fault' | 'Out' | 'Kitchen' | 'ServiceBreak' | 'WrongCourt';
+export const playCallOuts: readonly PlayRallyCallOut[] = [
+  'Drive',
+  'Dink',
+  'Fault',
+  'Out',
+  'Kitchen',
+  'WrongCourt',
+  'ServiceBreak',
+  'Lob',
+];
+export const callOutLabel = (value: PlayRallyCallOut) =>
+  value === 'ServiceBreak' ? 'Service break' : value === 'WrongCourt' ? 'Wrong court' : value;
 export interface PlayRallyEvent {
   id: string;
   matchId: string;

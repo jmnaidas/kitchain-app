@@ -14,7 +14,7 @@ internal sealed class PlayRallyEventConfiguration : IEntityTypeConfiguration<Pla
             table.HasCheckConstraint("CK_PlayRallyEvents_Winner", "\"Winner\" IN ('A', 'B')");
             table.HasCheckConstraint("CK_PlayRallyEvents_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
             table.HasCheckConstraint("CK_PlayRallyEvents_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");
-            table.HasCheckConstraint("CK_PlayRallyEvents_CallOut", "\"CallOut\" IS NULL OR \"CallOut\" IN ('Drive', 'Dink', 'Lob', 'Fault', 'Out', 'Kitchen', 'ServiceBreak')");
+            table.HasCheckConstraint("CK_PlayRallyEvents_CallOut", "\"CallOut\" IS NULL OR \"CallOut\" IN ('Drive', 'Dink', 'Lob', 'Fault', 'Out', 'Kitchen', 'ServiceBreak', 'WrongCourt')");
         });
         rally.HasKey(r => r.Id);
         rally.Property(r => r.Id).ValueGeneratedNever();

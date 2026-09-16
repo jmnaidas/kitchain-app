@@ -33,6 +33,42 @@ public sealed class PlayRallyApiTests(PostgresCourtFixture fixture) : IClassFixt
     }
 
     [PostgresFact]
+    public async Task Every_courtside_call_out_round_trips_and_invalid_values_leave_snapshots_unchanged()
+    {
+        var session = await Start();
+        var url = $"{Route}/{session.JoinCode}";
+        var match = Assert.Single(session.CurrentMatches);
+        using var scored = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/rallies", new { winner = "A" });
+        Assert.Equal(HttpStatusCode.OK, scored.StatusCode);
+        var loaded = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        var rally = Assert.Single(loaded.CurrentMatches[0].Rallies);
+        var tagUrl = $"{url}/matches/{match.Id}/rallies/{rally.Id}/call-out";
+        PlayRallyCallOut? previous = null;
+        foreach (var tag in Enum.GetValues<PlayRallyCallOut>())
+        {
+            using var edited = await fixture.Client.PatchAsJsonAsync(tagUrl,
+                new EditPlayRallyCallOut { CallOut = tag, ExpectedCallOut = previous }, Json);
+            Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+            loaded = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+            Assert.Equal(rally with { CallOut = tag }, Assert.Single(loaded.CurrentMatches[0].Rallies));
+            previous = tag;
+        }
+        foreach (var value in new object[] { 7, "Unknown", "999" })
+        {
+            using var invalid = await fixture.Client.PatchAsJsonAsync(tagUrl, new { callOut = value, expectedCallOut = "WrongCourt" });
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        }
+        using var finished = await fixture.Client.PostAsync($"{url}/matches/{match.Id}/finish", null);
+        Assert.Equal(HttpStatusCode.OK, finished.StatusCode);
+        loaded = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
+        var summary = Assert.Single(loaded.MatchHistory);
+        Assert.Null(summary.Winner);
+        Assert.Equal(PlayRallyCallOut.WrongCourt, Assert.Single(summary.CallOutCounts).CallOut);
+        Assert.Equal(1, loaded.Insights.TaggedRallies);
+        Assert.Equal(1, summary.TeamAScore);
+    }
+
+    [PostgresFact]
     public async Task Roster_history_and_removed_participant_insights_survive_database_reload()
     {
         var session = await Start(PlaySessionMode.QueueOnly);

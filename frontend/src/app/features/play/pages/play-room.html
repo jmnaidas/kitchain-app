@@ -117,7 +117,7 @@
       @if (problem()) {
         <p class="problem" role="alert">{{ problem() }}</p>
       }
-      <div class="room-layout">
+      <div class="room-layout" [class.courtside]="room.status !== 'Draft'">
         <aside class="add-area" aria-labelledby="add-title">
           <h2 id="add-title">Add your crew<span>.</span></h2>
           <p class="muted">One name. One place in the queue.</p>
@@ -148,7 +148,11 @@
             </fieldset>
           </form>
           @if (room.status === 'Draft') {
-            <app-play-roster-builder [session]="room" [disabled]="blocked()" (addPlayers)="importPlayers($event)" />
+            <app-play-roster-builder
+              [session]="room"
+              [disabled]="blocked()"
+              (addPlayers)="importPlayers($event)"
+            />
           }
           <div class="fair-note">
             <p class="eyebrow">Rotation · {{ rotationLabel(room.rotationMode) }}</p>
@@ -216,8 +220,11 @@
             <p class="muted">
               Completed games, newest first. Counts reflect recorded rallies only.
             </p>
-            @for (match of room.matchHistory; track match.id) {
-              <app-play-match-summary [match]="match" />
+            @for (match of room.matchHistory; track match.id; let index = $index) {
+              <app-play-match-summary
+                [match]="match"
+                [sequence]="room.matchHistory.length - index"
+              />
             } @empty {
               <p>No completed matches yet.</p>
             }

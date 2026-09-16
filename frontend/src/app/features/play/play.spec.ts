@@ -107,7 +107,7 @@ describe('Play experience', () => {
 
   beforeEach(async () => {
     localStorage.removeItem('kitchain.play.recent.v1');
-    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach(key => localStorage.removeItem(key));
+    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach((key) => localStorage.removeItem(key));
     liveEvents = new Subject<PlayLiveEvent>();
     listened = [];
     stopped = [];
@@ -141,7 +141,7 @@ describe('Play experience', () => {
   });
   afterEach(() => {
     localStorage.removeItem('kitchain.play.recent.v1');
-    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach(key => localStorage.removeItem(key));
+    [PRESETS_KEY, GROUPS_KEY, RECENT_PLAYERS_KEY].forEach((key) => localStorage.removeItem(key));
     http.verify();
   });
   async function navigate(url: string) {
@@ -190,135 +190,300 @@ describe('Play experience', () => {
       e.textContent?.trim(),
     );
 
-
   function hostValue(selector: string, value: string, event = 'input') {
-    const field = element.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector)!;
-    field.value = value; field.dispatchEvent(new Event(event, { bubbles: true })); fixture.detectChanges();
+    const field = element.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      selector,
+    )!;
+    field.value = value;
+    field.dispatchEvent(new Event(event, { bubbles: true }));
+    fixture.detectChanges();
   }
   function openQuick() {
     element.querySelector<HTMLDetailsElement>('app-play-roster-builder details')!.open = true;
     fixture.detectChanges();
   }
   it('keeps saved presets compact and applies only reusable fields without losing session details', async () => {
-    const preset = await TestBed.inject(PLAY_PRESETS).save('Weekend', { mode: 'LiveScoring', rotationMode: 'SplitTeams', numberOfCourts: 3, maximumPlayers: 24 });
+    const preset = await TestBed.inject(PLAY_PRESETS).save('Weekend', {
+      mode: 'LiveScoring',
+      rotationMode: 'SplitTeams',
+      numberOfCourts: 3,
+      maximumPlayers: 24,
+    });
     await navigate('/play/new');
-    expect(element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')?.open).toBe(false);
+    expect(element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')?.open).toBe(
+      false,
+    );
     element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')!.open = true;
-    fill('session-name', 'My special session'); fill('session-date', '2026-09-20');
-    fill('end-date', '2026-09-21'); fill('start-time', '23:00'); fill('end-time', '02:00');
-    hostValue('[aria-label="Saved preset"]', preset.id, 'change'); click('Apply preset');
-    expect(element.querySelector<HTMLInputElement>('#session-name')!.value).toBe('My special session');
+    fill('session-name', 'My special session');
+    fill('session-date', '2026-09-20');
+    fill('end-date', '2026-09-21');
+    fill('start-time', '23:00');
+    fill('end-time', '02:00');
+    hostValue('[aria-label="Saved preset"]', preset.id, 'change');
+    click('Apply preset');
+    expect(element.querySelector<HTMLInputElement>('#session-name')!.value).toBe(
+      'My special session',
+    );
     expect(element.querySelector<HTMLInputElement>('#session-date')!.value).toBe('2026-09-20');
     expect(element.querySelector<HTMLInputElement>('#end-date')!.value).toBe('2026-09-21');
     expect(element.querySelector<HTMLInputElement>('#start-time')!.value).toBe('23:00');
     expect(element.querySelector<HTMLInputElement>('#end-time')!.value).toBe('02:00');
     expect(element.querySelector<HTMLInputElement>('#court-count')!.value).toBe('3');
     expect(element.querySelector<HTMLInputElement>('#player-limit')!.value).toBe('24');
-    expect(element.querySelector<HTMLInputElement>('input[name="rotationMode"]:checked')!.value).toBe('SplitTeams');
-    expect(element.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value).toBe('LiveScoring');
+    expect(
+      element.querySelector<HTMLInputElement>('input[name="rotationMode"]:checked')!.value,
+    ).toBe('SplitTeams');
+    expect(element.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value).toBe(
+      'LiveScoring',
+    );
     expect(element.textContent).toContain('Applied Weekend');
-    submit(); const request = http.expectOne(base);
-    expect(request.request.body).toMatchObject({ name: 'My special session', date: '2026-09-20', endDate: '2026-09-21', startTime: '23:00:00', endTime: '02:00:00', numberOfCourts: 3, maximumPlayers: 24, mode: 'LiveScoring', rotationMode: 'SplitTeams' });
-    request.flush({}, { status: 400, statusText: 'Test validation' }); await settle();
+    submit();
+    const request = http.expectOne(base);
+    expect(request.request.body).toMatchObject({
+      name: 'My special session',
+      date: '2026-09-20',
+      endDate: '2026-09-21',
+      startTime: '23:00:00',
+      endTime: '02:00:00',
+      numberOfCourts: 3,
+      maximumPlayers: 24,
+      mode: 'LiveScoring',
+      rotationMode: 'SplitTeams',
+    });
+    request.flush({}, { status: 400, statusText: 'Test validation' });
+    await settle();
   });
   it('saves, validates, renames, updates and deletes presets in the existing create form', async () => {
     await navigate('/play/new');
     element.querySelector<HTMLDetailsElement>('app-play-preset-picker details')!.open = true;
     expect(element.textContent).toContain('Save the settings you use often.');
-    click('Save as new preset'); await settle(); expect(element.textContent).toContain('1–60');
-    hostValue('[aria-label="Preset name"]', 'Weekend'); click('Save as new preset'); await settle();
+    click('Save as new preset');
+    await settle();
+    expect(element.textContent).toContain('1–60');
+    hostValue('[aria-label="Preset name"]', 'Weekend');
+    click('Save as new preset');
+    await settle();
     expect(TestBed.inject(PLAY_PRESETS).items()).toHaveLength(1);
-    expect(element.querySelector<HTMLSelectElement>('[aria-label="Saved preset"]')!.value).toBe(TestBed.inject(PLAY_PRESETS).items()[0].id);
-    click('Save as new preset'); await settle(); expect(element.textContent).toContain('already saved');
-    hostValue('[aria-label="Preset name"]', 'Sunday'); click('Rename preset'); await settle();
+    expect(element.querySelector<HTMLSelectElement>('[aria-label="Saved preset"]')!.value).toBe(
+      TestBed.inject(PLAY_PRESETS).items()[0].id,
+    );
+    click('Save as new preset');
+    await settle();
+    expect(element.textContent).toContain('already saved');
+    hostValue('[aria-label="Preset name"]', 'Sunday');
+    click('Rename preset');
+    await settle();
     expect(TestBed.inject(PLAY_PRESETS).items()[0].name).toBe('Sunday');
-    fill('court-count', '4'); fill('player-limit', '20'); click('Update with current settings'); await settle();
-    expect(TestBed.inject(PLAY_PRESETS).items()[0]).toMatchObject({ numberOfCourts: 4, maximumPlayers: 20 });
-    click('Delete preset'); expect(TestBed.inject(PLAY_PRESETS).items()).toHaveLength(1);
-    click('Confirm delete preset'); await settle(); expect(TestBed.inject(PLAY_PRESETS).items()).toEqual([]);
-    expect(element.querySelector<HTMLInputElement>('#court-count')!.value).toBe('4'); http.expectNone(base);
+    fill('court-count', '4');
+    fill('player-limit', '20');
+    click('Update with current settings');
+    await settle();
+    expect(TestBed.inject(PLAY_PRESETS).items()[0]).toMatchObject({
+      numberOfCourts: 4,
+      maximumPlayers: 20,
+    });
+    click('Delete preset');
+    expect(TestBed.inject(PLAY_PRESETS).items()).toHaveLength(1);
+    click('Confirm delete preset');
+    await settle();
+    expect(TestBed.inject(PLAY_PRESETS).items()).toEqual([]);
+    expect(element.querySelector<HTMLInputElement>('#court-count')!.value).toBe('4');
+    http.expectNone(base);
   });
   it('creates normally with storage disabled and reports explicit preset save failure', async () => {
-    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Disabled'); });
-    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Disabled'); });
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('Disabled');
+    });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('Disabled');
+    });
     try {
       await navigate('/play/new');
-      hostValue('[aria-label="Preset name"]', 'Weekend'); click('Save as new preset'); await settle();
+      hostValue('[aria-label="Preset name"]', 'Weekend');
+      click('Save as new preset');
+      await settle();
       expect(element.textContent).toContain('could not be saved');
-      fill('start-time', '18:00'); fill('end-time', '21:00'); submit();
-      http.expectOne(base).flush(room()); await settle();
-      http.expectOne(base + '/' + code).flush(room()); await settle();
+      fill('start-time', '18:00');
+      fill('end-time', '21:00');
+      submit();
+      http.expectOne(base).flush(room());
+      await settle();
+      http.expectOne(base + '/' + code).flush(room());
+      await settle();
       expect(element.querySelector('code')?.textContent).toBe(code);
-    } finally { get.mockRestore(); set.mockRestore(); }
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
   });
   it('creates, edits and deletes a saved group without changing the actual roster', async () => {
-    await openRoom(room([crew[0]])); openQuick(); click('Groups');
-    expect(element.textContent).toContain('No groups saved yet'); click('Save current roster as group');
-    expect(element.querySelector<HTMLTextAreaElement>('[aria-label="Group players"]')!.value).toBe('Alex');
+    await openRoom(room([crew[0]]));
+    openQuick();
+    click('Groups');
+    expect(element.textContent).toContain('No groups saved yet');
+    click('Save current roster as group');
+    expect(element.querySelector<HTMLTextAreaElement>('[aria-label="Group players"]')!.value).toBe(
+      'Alex',
+    );
     hostValue('[aria-label="Group name"]', 'Office');
     hostValue('[aria-label="Group players"]', ' Alex \n alex \n Blair');
-    element.querySelector('form[aria-label="Save player group"]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await settle(); expect(TestBed.inject(PLAY_GROUPS).items()[0].players.map(p => p.displayName)).toEqual(['Alex', 'Blair']);
-    click('Edit group'); hostValue('[aria-label="Group name"]', 'Office crew'); hostValue('[aria-label="Group players"]', 'Alex\nCasey');
-    element.querySelector('form[aria-label="Save player group"]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await settle(); expect(TestBed.inject(PLAY_GROUPS).items()[0].name).toBe('Office crew');
-    click('Delete group'); click('Confirm delete group'); await settle();
-    expect(TestBed.inject(PLAY_GROUPS).items()).toEqual([]); expect(queueNames()).toEqual(['Alex']);
-    http.expectNone(request => request.method !== 'GET');
+    element
+      .querySelector('form[aria-label="Save player group"]')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(
+      TestBed.inject(PLAY_GROUPS)
+        .items()[0]
+        .players.map((p) => p.displayName),
+    ).toEqual(['Alex', 'Blair']);
+    click('Edit group');
+    hostValue('[aria-label="Group name"]', 'Office crew');
+    hostValue('[aria-label="Group players"]', 'Alex\nCasey');
+    element
+      .querySelector('form[aria-label="Save player group"]')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(TestBed.inject(PLAY_GROUPS).items()[0].name).toBe('Office crew');
+    click('Delete group');
+    click('Confirm delete group');
+    await settle();
+    expect(TestBed.inject(PLAY_GROUPS).items()).toEqual([]);
+    expect(queueNames()).toEqual(['Alex']);
+    http.expectNone((request) => request.method !== 'GET');
   });
   it('imports an entire group sequentially, skips duplicates, and only renders canonical players', async () => {
     const group = await TestBed.inject(PLAY_GROUPS).save('Office', [' alex ', 'Blair', 'Casey']);
-    await openRoom(room([crew[0]])); openQuick(); click('Groups'); hostValue('[aria-label="Saved group"]', group.id, 'change');
-    expect(element.textContent).toContain('already in roster'); click('Add all 3');
+    await openRoom(room([crew[0]]));
+    openQuick();
+    click('Groups');
+    hostValue('[aria-label="Saved group"]', group.id, 'change');
+    expect(element.textContent).toContain('already in roster');
+    click('Add all 3');
     http.expectOne(base + '/' + code).flush(room([crew[0]]));
     expect(queueNames()).toEqual(['Alex']);
-    const first = http.expectOne(base + '/' + code + '/players'); expect(first.request.body).toEqual({ displayName: 'Blair' }); first.flush(crew[1]);
+    const first = http.expectOne(base + '/' + code + '/players');
+    expect(first.request.body).toEqual({ displayName: 'Blair' });
+    first.flush(crew[1]);
     http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2)));
     http.expectOne(base + '/' + code + '/players').flush(crew[2]);
-    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 3))); await settle();
-    expect(queueNames()).toEqual(['Alex', 'Blair', 'Casey']); expect(element.textContent).toContain('2 players added · 1 already in roster');
-    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items().map(p => p.displayName)).toEqual(['Casey', 'Blair']);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 3)));
+    await settle();
+    expect(queueNames()).toEqual(['Alex', 'Blair', 'Casey']);
+    expect(element.textContent).toContain('2 players added · 1 already in roster');
+    expect(
+      TestBed.inject(PLAY_RECENT_PLAYERS)
+        .items()
+        .map((p) => p.displayName),
+    ).toEqual(['Casey', 'Blair']);
   });
   it('imports selected group members and reports partial failures without phantom entries', async () => {
     const group = await TestBed.inject(PLAY_GROUPS).save('Office', ['Alex', 'Blair', 'Casey']);
-    await openRoom(); openQuick(); click('Groups'); hostValue('[aria-label="Saved group"]', group.id, 'change');
-    const boxes = element.querySelectorAll<HTMLInputElement>('app-play-roster-builder input[type="checkbox"]'); boxes[0].click(); boxes[2].click(); fixture.detectChanges();
-    click('Add selected (2)'); http.expectOne(base + '/' + code).flush(room());
-    const add = http.expectOne(base + '/' + code + '/players'); expect(add.request.body.displayName).toBe('Alex'); add.flush(crew[0]);
+    await openRoom();
+    openQuick();
+    click('Groups');
+    hostValue('[aria-label="Saved group"]', group.id, 'change');
+    const boxes = element.querySelectorAll<HTMLInputElement>(
+      'app-play-roster-builder input[type="checkbox"]',
+    );
+    boxes[0].click();
+    boxes[2].click();
+    fixture.detectChanges();
+    click('Add selected (2)');
+    http.expectOne(base + '/' + code).flush(room());
+    const add = http.expectOne(base + '/' + code + '/players');
+    expect(add.request.body.displayName).toBe('Alex');
+    add.flush(crew[0]);
     http.expectOne(base + '/' + code).flush(room([crew[0]]));
-    const failed = http.expectOne(base + '/' + code + '/players'); expect(failed.request.body.displayName).toBe('Casey'); failed.flush({}, { status: 409, statusText: 'Full' });
-    http.expectOne(base + '/' + code).flush(room([crew[0]])); await settle();
-    expect(queueNames()).toEqual(['Alex']); expect(element.textContent).toContain('1 players added · 0 already in roster · 1 not confirmed');
+    const failed = http.expectOne(base + '/' + code + '/players');
+    expect(failed.request.body.displayName).toBe('Casey');
+    failed.flush({}, { status: 409, statusText: 'Full' });
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    await settle();
+    expect(queueNames()).toEqual(['Alex']);
+    expect(element.textContent).toContain(
+      '1 players added · 0 already in roster · 1 not confirmed',
+    );
     expect(element.textContent).toContain('Import stopped at Casey');
   });
   it('remembers successful manual adds, quick-adds recent players, skips duplicates and supports clearing', async () => {
-    await TestBed.inject(PLAY_RECENT_PLAYERS).remember('Blair'); await openRoom();
-    fill('guest-name', 'Alex'); submit(); http.expectOne(base + '/' + code + '/players').flush(crew[0]);
-    http.expectOne(base + '/' + code).flush(room([crew[0]])); await settle();
-    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items().map(p => p.displayName)).toEqual(['Alex', 'Blair']);
-    openQuick(); click('Add all 2'); http.expectOne(base + '/' + code).flush(room([crew[0]]));
-    http.expectOne(base + '/' + code + '/players').flush(crew[1]); http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2))); await settle();
+    await TestBed.inject(PLAY_RECENT_PLAYERS).remember('Blair');
+    await openRoom();
+    fill('guest-name', 'Alex');
+    submit();
+    http.expectOne(base + '/' + code + '/players').flush(crew[0]);
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    await settle();
+    expect(
+      TestBed.inject(PLAY_RECENT_PLAYERS)
+        .items()
+        .map((p) => p.displayName),
+    ).toEqual(['Alex', 'Blair']);
+    openQuick();
+    click('Add all 2');
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    http.expectOne(base + '/' + code + '/players').flush(crew[1]);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2)));
+    await settle();
     expect(element.textContent).toContain('1 players added · 1 already in roster');
-    click('Forget recent player Alex'); await settle(); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
-    click('Clear Recent Players'); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
-    click('Confirm clear Recent Players'); await settle(); expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toEqual([]);
+    click('Forget recent player Alex');
+    await settle();
+    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
+    click('Clear Recent Players');
+    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toHaveLength(1);
+    click('Confirm clear Recent Players');
+    await settle();
+    expect(TestBed.inject(PLAY_RECENT_PLAYERS).items()).toEqual([]);
     expect(queueNames()).toEqual(['Alex', 'Blair']);
   });
   it('imports previous canonical roster names without copying state or IDs and allows forgetting', async () => {
-    TestBed.inject(RecentPlaySessions).remember('GHJKLM'); await openRoom(room([crew[0]])); openQuick(); click('Previous');
-    http.expectOne(base + '/GHJKLM').flush({ ...room([player('historical-id', 'Alex', null, 'Resting'), player('other-id', 'Blair', null, 'Playing')]), joinCode: 'GHJKLM', name: 'Last weekend', status: 'Ended' }); await settle();
-    hostValue('[aria-label="Previous session"]', 'GHJKLM', 'change'); click('Add all 2');
-    http.expectOne(base + '/' + code).flush(room([crew[0]])); const add = http.expectOne(base + '/' + code + '/players');
-    expect(add.request.body).toEqual({ displayName: 'Blair' }); add.flush(crew[1]);
-    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2))); await settle();
-    expect(queueNames()).toEqual(['Alex', 'Blair']); expect(element.textContent).toContain('1 players added · 1 already in roster');
-    click('Forget previous session'); await settle(); expect(TestBed.inject(RecentPlaySessions).list().some(e => e.code === 'GHJKLM')).toBe(false);
+    TestBed.inject(RecentPlaySessions).remember('GHJKLM');
+    await openRoom(room([crew[0]]));
+    openQuick();
+    click('Previous');
+    http.expectOne(base + '/GHJKLM').flush({
+      ...room([
+        player('historical-id', 'Alex', null, 'Resting'),
+        player('other-id', 'Blair', null, 'Playing'),
+      ]),
+      joinCode: 'GHJKLM',
+      name: 'Last weekend',
+      status: 'Ended',
+    });
+    await settle();
+    hostValue('[aria-label="Previous session"]', 'GHJKLM', 'change');
+    click('Add all 2');
+    http.expectOne(base + '/' + code).flush(room([crew[0]]));
+    const add = http.expectOne(base + '/' + code + '/players');
+    expect(add.request.body).toEqual({ displayName: 'Blair' });
+    add.flush(crew[1]);
+    http.expectOne(base + '/' + code).flush(room(crew.slice(0, 2)));
+    await settle();
+    expect(queueNames()).toEqual(['Alex', 'Blair']);
+    expect(element.textContent).toContain('1 players added · 1 already in roster');
+    click('Forget previous session');
+    await settle();
+    expect(
+      TestBed.inject(RecentPlaySessions)
+        .list()
+        .some((e) => e.code === 'GHJKLM'),
+    ).toBe(false);
   });
   it('keeps empty quick-add compact and only exposes it in Draft', async () => {
-    await openRoom(); expect(element.querySelector<HTMLDetailsElement>('app-play-roster-builder details')!.open).toBe(false);
-    openQuick(); expect(element.textContent).toContain('Players you add successfully will appear here'); click('Previous'); await settle();
-    expect(element.textContent).toContain('Previous sessions used on this browser will appear here');
-    liveEvents.next({ kind: 'changed' }); TestBed.tick(); http.expectOne(base + '/' + code).flush({ ...room(), status: 'Active' }); await settle();
+    await openRoom();
+    expect(element.querySelector<HTMLDetailsElement>('app-play-roster-builder details')!.open).toBe(
+      false,
+    );
+    openQuick();
+    expect(element.textContent).toContain('Players you add successfully will appear here');
+    click('Previous');
+    await settle();
+    expect(element.textContent).toContain(
+      'Previous sessions used on this browser will appear here',
+    );
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    http.expectOne(base + '/' + code).flush({ ...room(), status: 'Active' });
+    await settle();
     expect(element.querySelector('app-play-roster-builder')).toBeNull();
   });
   for (const style of rotationStyles) {
@@ -588,6 +753,7 @@ describe('Play experience', () => {
       ],
     };
     await openRoom(active);
+    click('Queue 5');
     expect(queueNames()).toEqual(['Ellis', 'Frankie', 'Gale', 'Harper', 'Indy']);
     expect(element.querySelectorAll('app-play-player-list li')).toHaveLength(5);
     click('Courts');
@@ -801,6 +967,7 @@ describe('Play experience', () => {
       courtNumber: null,
     };
     await openRoom(state);
+    click('Queue ' + state.waitingQueue.length);
     expect(element.querySelector('#next-up-title')?.textContent).toBe('Next Up');
     expect(
       element
@@ -926,6 +1093,7 @@ describe('Play experience', () => {
       courtNumber: 1,
     };
     await openRoom(state);
+    click('Queue ' + state.waitingQueue.length);
     expect(element.textContent).toContain(
       '4 players in the projected lineup are still held on Court 1',
     );
@@ -1324,7 +1492,9 @@ describe('Play experience', () => {
     click('Match History');
     const cards = element.querySelectorAll('app-play-match-summary');
     expect(cards).toHaveLength(2);
-    expect(cards[0].querySelector('h3')?.textContent).toBe('Court 2');
+    expect(cards[0].querySelector('h3')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Game 2 · Court 2',
+    );
     expect(cards[0].textContent).toContain('Team B won');
     expect(cards[0].textContent).toContain('A 8–11 B');
     expect(cards[1].textContent).toContain('Team A won');
@@ -1396,7 +1566,9 @@ describe('Play experience', () => {
       .flush({ ...next, matchHistory: [summary({ id: 'new-completed', courtNumber: 2 }), saved] });
     await settle();
     expect(element.querySelectorAll('app-play-match-summary')).toHaveLength(2);
-    expect(element.querySelector('app-play-match-summary h3')?.textContent).toBe('Court 2');
+    expect(
+      element.querySelector('app-play-match-summary h3')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('Game 2 · Court 2');
   });
 
   it('keeps no-completed-match history honest and clearly separates call-outs and their editor', async () => {
@@ -1668,6 +1840,127 @@ describe('Play experience', () => {
     expect(element.textContent).toContain('Check your details');
     expect(element.textContent).not.toContain('Raw internal details');
     expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('4');
+  });
+
+  it('opens active Live Scoring on courts with explicit traditional scoring and court navigation', async () => {
+    await openRoom(scoredRoom());
+    expect(button('Courts').getAttribute('aria-pressed')).toBe('true');
+    expect(element.querySelector('[aria-label="Scoreboard on Court 1"]')?.textContent).toContain(
+      'Alex',
+    );
+    expect(element.textContent).toContain('Only the serving team scores');
+    expect(element.querySelectorAll('nav[aria-label="Jump to court"] button')).toHaveLength(2);
+    const target = element.querySelector<HTMLElement>('#play-court-2')!;
+    target.scrollIntoView = vi.fn();
+    click('Court 2');
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    expect(router.url).toBe('/play/s/ABCDEF');
+    http.expectNone((request) => request.method === 'GET');
+    expect(element.querySelector('.room-layout')?.classList.contains('courtside')).toBe(true);
+  });
+
+  it('offers optional single call-out chips with canonical pressed state and safe removal', async () => {
+    const rally = rallyEvent();
+    await openRoom(withRallies([rally]));
+    expect(element.querySelectorAll('.quick-tags button')).toHaveLength(8);
+    click('Wrong court');
+    const edit = http.expectOne(`${base}/${code}/matches/scored-match/rallies/rally-1/call-out`);
+    expect(edit.request.body).toEqual({ callOut: 'WrongCourt', expectedCallOut: null });
+    expect(button('Wrong court').getAttribute('aria-pressed')).toBe('false');
+    expect(button('Team A won rally').disabled).toBe(true);
+    click('Wrong court');
+    http.expectNone((request) => request.method === 'PATCH');
+    edit.flush(withRallies([{ ...rally, callOut: 'WrongCourt' }]));
+    await settle();
+    expect(button('Wrong court').getAttribute('aria-pressed')).toBe('true');
+    expect(element.querySelector('.tag')?.textContent).toBe('Wrong court');
+    click('Wrong court');
+    const clear = http.expectOne(`${base}/${code}/matches/scored-match/rallies/rally-1/call-out`);
+    expect(clear.request.body).toEqual({ callOut: null, expectedCallOut: 'WrongCourt' });
+    clear.flush(withRallies([rally]));
+    await settle();
+    expect(button('Wrong court').getAttribute('aria-pressed')).toBe('false');
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('4');
+  });
+
+  it('keeps both courts canonical during scoring, double taps, completion and live correction', async () => {
+    const state = scoredRoom();
+    const other = {
+      ...state.currentMatches[0],
+      id: 'court-two',
+      courtNumber: 2,
+      teamAScore: 6,
+      teamBScore: 5,
+    };
+    state.currentMatches.push(other);
+    await openRoom(state);
+    const court = (number: number) =>
+      element.querySelector<HTMLElement>(`article[aria-label="Court ${number}"]`)!;
+    const tap = () => {
+      court(1).querySelector<HTMLButtonElement>('.point-a')!.click();
+      fixture.detectChanges();
+    };
+    tap();
+    tap();
+    const pending = http.expectOne(`${base}/${code}/matches/scored-match/rallies`);
+    http.expectNone((request) => request.method === 'POST');
+    expect(court(1).querySelector('.score')?.textContent).toBe('3');
+    expect(court(2).querySelector('.score')?.textContent).toBe('6');
+    const complete = completedRoom(state, 'A');
+    complete.currentMatches.push(other);
+    pending.flush(complete);
+    await settle();
+    expect(court(1).textContent).toContain('Team A wins');
+    expect(court(2).textContent).not.toContain('Game complete');
+    expect(court(2).querySelector('.score')?.textContent).toBe('6');
+    liveEvents.next({ kind: 'changed' });
+    TestBed.tick();
+    http.expectOne(`${base}/${code}`).flush({
+      ...complete,
+      currentMatches: [complete.currentMatches[0], { ...other, teamAScore: 5 }],
+    });
+    await settle();
+    expect(court(2).querySelector('.score')?.textContent).toBe('5');
+    expect(court(1).textContent).toContain('Team A wins');
+  });
+
+  it('previews the exact Live Scoring override score without inventing a leading-team winner', async () => {
+    await openRoom(scoredRoom());
+    click('Finish game on Court 1');
+    expect(element.querySelector('.finish-score')?.textContent).toContain('Team A 3 · Team B 2');
+    expect(element.querySelector('.confirmation')?.textContent).toContain('records No Result');
+    click('Confirm Finish');
+    const finish = http.expectOne(`${base}/${code}/matches/scored-match/finish`);
+    expect(finish.request.body).toEqual({ winner: null });
+    finish.flush(completedRoom(scoredRoom()));
+    await settle();
+    expect(element.querySelector('.result')?.textContent).toContain('No result recorded');
+    expect(element.querySelector('.rally-actions')).toBeNull();
+  });
+
+  it('retains the canonical score after rejected correction and refetches a stale completed game', async () => {
+    const state = scoredRoom();
+    await openRoom(state);
+    click('Correct score');
+    const form = element.querySelector<HTMLFormElement>('form[aria-label="Correct score"]')!;
+    form.querySelector<HTMLInputElement>('[name="teamAScore"]')!.value = '7';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    http
+      .expectOne(`${base}/${code}/matches/scored-match/score`)
+      .flush({}, { status: 400, statusText: 'Bad Request' });
+    await settle();
+    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('3');
+    expect(element.querySelector('app-play-score-editor')).not.toBeNull();
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    http
+      .expectOne(`${base}/${code}/matches/scored-match/score`)
+      .flush({}, { status: 409, statusText: 'Conflict' });
+    http.expectOne(`${base}/${code}`).flush(completedRoom(state, 'B'));
+    await settle();
+    expect(element.querySelector('app-play-score-editor')).toBeNull();
+    expect(element.querySelector('.result')?.textContent).toContain('Team B wins');
   });
 
   it('validates a correction and holds a winning result until next game confirmation', async () => {

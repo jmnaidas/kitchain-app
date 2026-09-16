@@ -1,7 +1,7 @@
 namespace Kitchain.Domain.Play;
 
 // Descriptive tags only: these values do not affect scoring or rotation.
-public enum PlayRallyCallOut { Drive, Dink, Lob, Fault, Out, Kitchen, ServiceBreak }
+public enum PlayRallyCallOut { Drive, Dink, Lob, Fault, Out, Kitchen, ServiceBreak, WrongCourt }
 
 public sealed class PlayRallyEvent
 {

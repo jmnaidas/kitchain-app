@@ -31,6 +31,23 @@ li {
   color: var(--forest);
   font-weight: 600;
 }
+.quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 0.6rem;
+}
+.quick-tags button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  text-decoration: none;
+  padding-inline: 0.65rem;
+}
+.quick-tags button[aria-pressed='true'] {
+  background: var(--forest);
+  color: var(--ivory);
+  font-weight: 700;
+}
 .context {
   margin-block: 0.35rem;
   line-height: 1.4;

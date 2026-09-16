@@ -203,6 +203,9 @@ input {
   }
 }
 @media (max-width: 640px) {
+  .room-layout.courtside {
+    grid-template-areas: 'content' 'side';
+  }
   .room-layout {
     grid-template-columns: 1fr;
     grid-template-areas: 'side' 'content';

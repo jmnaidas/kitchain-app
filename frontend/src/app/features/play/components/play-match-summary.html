@@ -1,6 +1,11 @@
 <article [attr.aria-label]="'Completed game on Court ' + match().courtNumber">
   <header>
-    <h3>Court {{ match().courtNumber }}</h3>
+    <h3>
+      @if (sequence(); as number) {
+        Game {{ number }} ·
+      }
+      Court {{ match().courtNumber }}
+    </h3>
     <span>Completed</span>
   </header>
   <p class="result">

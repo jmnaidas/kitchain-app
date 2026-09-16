@@ -7,6 +7,8 @@ import {
   output,
   signal,
   untracked,
+  ElementRef,
+  inject,
 } from '@angular/core';
 import {
   NextPlayGame,
@@ -19,15 +21,17 @@ import {
 import { PlayScoreEditor } from './play-score-editor';
 import { PlayNextGame } from './play-next-game';
 import { PlayRallyHistory } from './play-rally-history';
+import { DatePipe } from '@angular/common';
 
 @Component({
   selector: 'app-play-courts',
-  imports: [PlayScoreEditor, PlayNextGame, PlayRallyHistory],
+  imports: [DatePipe, PlayScoreEditor, PlayNextGame, PlayRallyHistory],
   templateUrl: './play-courts.html',
   styleUrl: './play-courts.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlayCourts {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly session = input.required<PlaySession>();
   readonly disabled = input(false);
   readonly finish = output<{ matchId: string; winner: PlayTeam | null }>();
@@ -50,6 +54,11 @@ export class PlayCourts {
     if (this.disabled() || this.session().status !== 'Active') return;
     this.rally.emit({ matchId, winner });
   }
+  protected jumpToCourt(number: number) {
+    const court = this.host.nativeElement.querySelector<HTMLElement>('#play-court-' + number);
+    court?.focus({ preventScroll: true });
+    court?.scrollIntoView({ block: 'start' });
+  }
   protected readonly courts = computed(() => {
     const session = this.session();
     const start = this.page() * 8;
@@ -61,6 +70,7 @@ export class PlayCourts {
         return {
           number,
           match,
+          summary: session.matchHistory.find((summary) => summary.id === match?.id),
           teamA: match?.players.filter((p) => p.team === 'A') ?? [],
           teamB: match?.players.filter((p) => p.team === 'B') ?? [],
         };
