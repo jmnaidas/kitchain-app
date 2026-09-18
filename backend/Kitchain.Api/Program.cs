@@ -8,6 +8,8 @@ using System.Text.Json.Serialization;
 using Kitchain.Application.Play;
 using Kitchain.Infrastructure.Play;
 using Kitchain.Api.Play;
+using Kitchain.Application.Gear;
+using Kitchain.Infrastructure.Gear;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,9 @@ builder.Services.AddScoped<ICourtSubmissionWriter, EfCourtSubmissionWriter>();
 builder.Services.AddScoped<ICourtSubmissionModeration, EfCourtSubmissionModeration>();
 builder.Services.AddScoped<ICourtDiscoveryReader, EfCourtDiscoveryReader>();
 builder.Services.AddScoped<PlaySessionService>();
+builder.Services.AddScoped<GearImportService>();
+builder.Services.AddScoped<IGearImportStore, EfGearImportStore>();
+builder.Services.AddScoped<IGearCatalogReader, EfGearCatalogReader>();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IPlaySessionNotifier, SignalRPlaySessionNotifier>();
 builder.Services.AddScoped<IPlaySessionStore, EfPlaySessionStore>();
