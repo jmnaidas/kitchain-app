@@ -90,12 +90,14 @@ export interface PlayMatch {
   rallies: PlayRallyEvent[];
   id: string;
   courtNumber: number;
-  status: 'Active' | 'Completed';
+  status: 'Ready' | 'Active' | 'Completed';
+  lineupRevision?: number;
+  isLineupOverridden?: boolean;
   completedAt: string | null;
   winner: PlayTeam | null;
   nextLineup: PlayLineupPlayer[];
   eligiblePlayers: PlayPlayer[];
-  startedAt: string;
+  startedAt: string | null;
   teamAScore: number;
   teamBScore: number;
   servingTeam: PlayTeam;

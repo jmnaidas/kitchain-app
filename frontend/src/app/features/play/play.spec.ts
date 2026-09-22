@@ -591,26 +591,25 @@ describe('Play experience', () => {
     expect(queueNames()).toEqual(['Blair', 'Ellis', 'Alex']);
   });
 
-  it('keeps preset confirmation, reset, manual override and no-result explanation on the canonical lineup', async () => {
-    const active = scoredRoom();
-    const held = { ...completedRoom(active, null), rotationMode: 'WinnersStay' as const };
+  it('prepares the canonical preset recommendation without starting gameplay', async () => {
+    const held = { ...completedRoom(scoredRoom(), null), rotationMode: 'WinnersStay' as const };
     await openRoom(held);
     click('Courts');
     click('Proceed to next game');
-    expect(element.textContent).toContain('No result recorded. This lineup uses Fair Rotation.');
-    click('Edit lineup');
-    click('Reset to recommendation');
-    expect(element.querySelector('app-play-next-game select')).toBeNull();
-    click('Start Next Game');
     const next = http.expectOne(base + '/' + code + '/matches/scored-match/next');
     expect(next.request.body).toEqual({
       playerIds: held.currentMatches[0].nextLineup.map((p) => p.playerId),
       overrideLineup: false,
     });
-    next.flush({ ...active, rotationMode: 'WinnersStay' });
+    const ready = readyRoom();
+    ready.rotationMode = 'WinnersStay';
+    next.flush(ready);
     await settle();
+    expect(element.textContent).toContain('Winners Stay recommendation');
+    expect(element.querySelectorAll('app-play-next-game select')).toHaveLength(4);
+    expect(element.querySelector('.rally-actions')).toBeNull();
+    http.expectNone((request) => request.method !== 'GET');
   });
-
   it('subscribes after loading, coalesces live reads, and cleans up when changing sessions', async () => {
     await openRoom();
     expect(listened).toEqual([code]);
@@ -801,10 +800,6 @@ describe('Play experience', () => {
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
     expect(element.textContent).toContain('Game complete');
     click('Proceed to next game');
-    http.expectNone((request) => request.method === 'POST');
-    click('Cancel');
-    click('Proceed to next game');
-    click('Start Next Game');
     const confirm = http.expectOne(`${base}/${code}/matches/match-1/next`);
     expect(confirm.request.body).toEqual({
       playerIds: waiting.slice(0, 4).map((p) => p.id),
@@ -1364,7 +1359,6 @@ describe('Play experience', () => {
     expect(element.querySelector('app-play-rally-history .tag')?.textContent).toBe('Lob');
     expect(button('Edit call-out for rally 1').disabled).toBe(false);
     click('Proceed to next game');
-    click('Start Next Game');
     const fresh = scoredRoom();
     fresh.currentMatches[0] = {
       ...fresh.currentMatches[0],
@@ -1551,7 +1545,6 @@ describe('Play experience', () => {
     await openRoom(held);
     click('Courts');
     click('Proceed to next game');
-    click('Start Next Game');
     const next = scoredRoom();
     next.currentMatches[0].id = 'next-match';
     next.matchHistory = [saved];
@@ -1758,6 +1751,53 @@ describe('Play experience', () => {
       ],
     };
   }
+  function readyRoom(source: PlaySession = scoredRoom()): PlaySession {
+    const players = source.players.map((p) => ({
+      ...p,
+      state: 'Waiting' as const,
+      queueOrder: p.queueOrder ?? 1,
+    }));
+    const match = {
+      ...source.currentMatches[0],
+      status: 'Ready' as const,
+      startedAt: null,
+      completedAt: null,
+      winner: null,
+      teamAScore: 0,
+      teamBScore: 0,
+      servingTeam: 'A' as const,
+      currentServerNumber: 2,
+      rallies: [],
+      lineupRevision: 0,
+      isLineupOverridden: false,
+      eligiblePlayers: players,
+      nextLineup: [],
+    };
+    const ids = new Set(match.players.map((p) => p.playerId));
+    return {
+      ...source,
+      players,
+      currentMatches: [match],
+      activeMatches: [],
+      waitingQueue: players.filter((p) => !ids.has(p.id)),
+      queue: {
+        nextUp: players.filter((p) => ids.has(p.id)),
+        waiting: players.filter((p) => !ids.has(p.id)),
+        neededPlayers: 0,
+        heldPlayers: 0,
+        courtNumber: 1,
+      },
+    };
+  }
+  function chooseSlot(position: number, id: string) {
+    const select = element.querySelectorAll<HTMLSelectElement>('app-play-next-game select')[
+      position - 1
+    ];
+    select.value = id;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
   function scoredRoom(): PlaySession {
     const playing = crew
       .slice(0, 4)
@@ -2037,7 +2077,6 @@ describe('Play experience', () => {
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
     expect(element.querySelector('.rally-actions')).toBeNull();
     click('Proceed to next game');
-    click('Start Next Game');
     http.expectOne(`${base}/${code}/matches/scored-match/next`).flush(rotated);
     await settle();
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Ellis');
@@ -2244,73 +2283,48 @@ describe('Play experience', () => {
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
   });
 
-  it('edits all eligible slots, rejects duplicates, resets recommendation and preserves a continuing player override', async () => {
-    const state = completedRoom(scoredRoom());
+  it('edits Ready names directly, swaps and replaces canonically, and refetches conflicts', async () => {
+    const state = readyRoom();
     await openRoom(state);
     click('Courts');
-    click('Proceed to next game');
-    click('Edit lineup');
-    const selects = Array.from(
-      element.querySelectorAll<HTMLSelectElement>('app-play-next-game select'),
-    );
-    expect(selects).toHaveLength(4);
-    expect(Array.from(selects[0].options).map((option) => option.value)).toEqual([
-      '',
-      'e',
-      'f',
-      'g',
-      'h',
-      'a',
-      'b',
-      'c',
-      'd',
-    ]);
-    selects[0].value = 'f';
-    selects[0].dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    click('Start Next Game');
-    http.expectNone((request) => request.method === 'POST');
-    expect(element.querySelector('app-play-next-game [role="alert"]')).not.toBeNull();
-    click('Reset to fair rotation');
-    expect(element.querySelector('app-play-next-game select')).toBeNull();
-    click('Edit lineup');
-    const changed = element.querySelectorAll<HTMLSelectElement>('app-play-next-game select');
-    changed[0].value = 'a';
-    changed[0].dispatchEvent(new Event('change'));
-    changed[1].value = 'e';
-    changed[1].dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    click('Start Next Game');
-    const next = http.expectOne(`${base}/${code}/matches/scored-match/next`);
-    expect(next.request.body).toEqual({ playerIds: ['a', 'e', 'g', 'h'], overrideLineup: true });
-    next.flush(
-      { title: 'The next lineup has changed. Refresh and choose four eligible players.' },
-      { status: 409, statusText: 'Conflict' },
-    );
-    const stale = {
-      ...state,
-      waitingQueue: state.waitingQueue.slice(1),
-      queue: { ...state.queue, waiting: state.waitingQueue.slice(1) },
-      currentMatches: [
-        {
-          ...state.currentMatches[0],
-          nextLineup: state.currentMatches[0].nextLineup.slice(1),
-          eligiblePlayers: state.currentMatches[0].eligiblePlayers.filter((p) => p.id !== 'a'),
-        },
-      ],
-    };
-    http.expectOne(`${base}/${code}`).flush(stale);
+    expect(element.querySelectorAll('app-play-next-game select')).toHaveLength(4);
+    chooseSlot(2, 'c');
+    const swap = http.expectOne(base + '/' + code + '/matches/scored-match/lineup');
+    expect(swap.request.method).toBe('PATCH');
+    expect(swap.request.body).toEqual({ position: 2, playerId: 'c', expectedRevision: 0 });
+    expect(button('Start Game').disabled).toBe(true);
+    const changed = readyRoom();
+    changed.currentMatches[0].players = [
+      state.currentMatches[0].players[0],
+      state.currentMatches[0].players[2],
+      state.currentMatches[0].players[1],
+      state.currentMatches[0].players[3],
+    ].map((p, i) => ({ ...p, position: i + 1, team: i < 2 ? 'A' : 'B' }));
+    changed.currentMatches[0].lineupRevision = 1;
+    changed.currentMatches[0].isLineupOverridden = true;
+    swap.flush(changed);
     await settle();
-    expect(element.textContent).toContain('no longer eligible');
-    click('Start Next Game');
-    http.expectNone((request) => request.method === 'POST');
-    expect(element.textContent).toContain('Choose four distinct eligible players');
-    click('Reset to fair rotation');
-    expect(element.textContent).toContain('Fair rotation needs four eligible players');
-    expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
-    expect(element.querySelector('app-play-next-game .primary')).toBeNull();
+    expect(
+      Array.from(
+        element.querySelectorAll<HTMLSelectElement>('app-play-next-game select'),
+        (x) => x.value,
+      ),
+    ).toEqual(['a', 'c', 'b', 'd']);
+    chooseSlot(2, 'e');
+    const replacement = http.expectOne(base + '/' + code + '/matches/scored-match/lineup');
+    expect(replacement.request.body).toEqual({ position: 2, playerId: 'e', expectedRevision: 1 });
+    replacement.flush({ title: 'The lineup changed.' }, { status: 409, statusText: 'Conflict' });
+    http.expectOne(base + '/' + code).flush(state);
+    await settle();
+    expect(element.querySelectorAll<HTMLSelectElement>('app-play-next-game select')[1].value).toBe(
+      'b',
+    );
+    click('Reset Recommendation');
+    const reset = http.expectOne(base + '/' + code + '/matches/scored-match/lineup/reset');
+    expect(reset.request.body).toEqual({ expectedRevision: 0 });
+    reset.flush(state);
+    await settle();
   });
-
   it('shows a completed game and then an ended read-only state through canonical live refetch', async () => {
     const active = scoredRoom();
     await openRoom(active);
@@ -2391,128 +2405,74 @@ describe('Play experience', () => {
     expect(element.querySelector('.score')).toBeNull();
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
     click('Proceed to next game');
-    expect(element.querySelector('app-play-next-game')?.textContent).toContain('Ellis');
-    http.expectNone((request) => request.method === 'POST');
+    http.expectOne(base + '/' + code + '/matches/scored-match/next').flush(readyRoom());
+    await settle();
+    expect(button('Start Game')).toBeTruthy();
+    expect(element.querySelector('.rally-actions')).toBeNull();
   });
-  it('uses the backend recommendation on reset and excludes other-court and resting players from overrides', async () => {
-    const state = completedRoom(scoredRoom());
-    const otherPlayers = ['i', 'j', 'k', 'l'].map((id, i) =>
-      player(id, `Other ${i}`, null, 'Playing'),
-    );
-    const resting = player('r', 'Resting', null, 'Resting');
-    const deeper = player('z', 'Later in queue', 50);
-    const otherMatch = {
+  it('excludes other-court and resting players and resets only the selected Ready court', async () => {
+    const state = readyRoom();
+    const other = {
       ...scoredRoom().currentMatches[0],
-      id: 'other-match',
+      id: 'other',
       courtNumber: 2,
-      teamAScore: 7,
-      teamBScore: 8,
-      players: otherPlayers.map((p, i) => ({
-        playerId: p.id,
-        displayName: p.displayName,
-        team: i < 2 ? ('A' as const) : ('B' as const),
-        position: i + 1,
+      players: scoredRoom().currentMatches[0].players.map((p) => ({
+        ...p,
+        playerId: 'other-' + p.playerId,
       })),
     };
-    state.players.push(...otherPlayers, resting, deeper);
-    state.waitingQueue.push(deeper);
-    state.currentMatches[0].eligiblePlayers.push(deeper);
-    state.currentMatches.push(otherMatch);
-    const proposal = state.currentMatches[0].nextLineup;
-    state.currentMatches[0].nextLineup = [proposal[0], proposal[2], proposal[1], proposal[3]].map(
-      (p, i) => ({ ...p, position: i + 1, team: i < 2 ? 'A' : 'B' }),
-    );
+    state.currentMatches.push(other);
+    state.players.push(player('rest', 'Sitting out', null, 'Resting'));
     await openRoom(state);
     click('Courts');
     const otherBefore = element.querySelector('article[aria-label="Court 2"]')!.textContent;
-    click('Proceed to next game');
-    click('Edit lineup');
-    const select = element.querySelector<HTMLSelectElement>('app-play-next-game select')!;
-    const options = Array.from(select.options).map((option) => option.value);
-    expect(options).toContain('a');
-    expect(options).toContain('z');
-    expect(options).not.toContain('i');
-    expect(options).not.toContain('r');
-    select.value = 'a';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    click('Reset to fair rotation');
-    expect(
-      Array.from(element.querySelectorAll('app-play-next-game strong')).map(
-        (node) => node.textContent,
-      ),
-    ).toEqual(['Ellis', 'Gale', 'Frankie', 'Harper']);
-    click('Cancel');
-    expect(element.querySelector('article[aria-label="Court 2"]')!.textContent).toBe(otherBefore);
-    expect(element.querySelector('article[aria-label="Court 1"]')!.textContent).toContain(
-      'Game complete',
+    const options = Array.from(
+      element.querySelector<HTMLSelectElement>('app-play-next-game select')!.options,
+      (p) => p.value,
     );
-    click('Proceed to next game');
-    click('Start Next Game');
-    const next = http.expectOne(`${base}/${code}/matches/scored-match/next`);
-    expect(next.request.body).toEqual({ playerIds: ['e', 'g', 'f', 'h'], overrideLineup: false });
-    const nextPlayers = state.currentMatches[0].nextLineup;
-    next.flush({
-      ...state,
-      currentMatches: [
-        {
-          ...scoredRoom().currentMatches[0],
-          id: 'confirmed',
-          players: nextPlayers,
-          teamAScore: 0,
-          teamBScore: 0,
-          currentServerNumber: 2,
-        },
-        otherMatch,
-      ],
-    });
+    expect(options).toContain('a');
+    expect(options).toContain('e');
+    expect(options).not.toContain('rest');
+    expect(options).not.toContain('other-a');
+    click('Reset Recommendation');
+    http.expectOne(base + '/' + code + '/matches/scored-match/lineup/reset').flush(state);
     await settle();
     expect(element.querySelector('article[aria-label="Court 2"]')!.textContent).toBe(otherBefore);
   });
-
-  it('allows four completed players to continue by explicit override when nobody is waiting', async () => {
-    const state = completedRoom(scoredRoom());
-    state.players = state.players.filter((p) => p.state === 'Playing');
+  it('allows all four returning players to be re-paired in the next Ready lineup without waiting players', async () => {
+    const state = readyRoom();
+    state.players = state.players.slice(0, 4);
     state.waitingQueue = [];
-    state.currentMatches[0].nextLineup = [];
     state.currentMatches[0].eligiblePlayers = state.players;
     await openRoom(state);
     click('Courts');
-    click('Proceed to next game');
-    expect(element.textContent).toContain('Fair rotation needs four eligible players');
-    click('Edit lineup');
-    const selects = element.querySelectorAll<HTMLSelectElement>('app-play-next-game select');
-    ['a', 'b', 'c', 'd'].forEach((id, i) => {
-      selects[i].value = id;
-      selects[i].dispatchEvent(new Event('change'));
-    });
-    fixture.detectChanges();
-    click('Start Next Game');
-    const next = http.expectOne(`${base}/${code}/matches/scored-match/next`);
-    expect(next.request.body).toEqual({ playerIds: ['a', 'b', 'c', 'd'], overrideLineup: true });
-    next.flush({
+    chooseSlot(2, 'd');
+    const swap = http.expectOne(base + '/' + code + '/matches/scored-match/lineup');
+    expect(swap.request.body).toEqual({ position: 2, playerId: 'd', expectedRevision: 0 });
+    const slots = state.currentMatches[0].players;
+    state.currentMatches[0].players = [slots[0], slots[3], slots[2], slots[1]].map((p, i) => ({
+      ...p,
+      position: i + 1,
+      team: i < 2 ? 'A' : 'B',
+    }));
+    state.currentMatches[0].lineupRevision = 1;
+    swap.flush(state);
+    await settle();
+    click('Start Game');
+    const start = http.expectOne(base + '/' + code + '/matches/scored-match/start');
+    expect(start.request.body).toEqual({ expectedRevision: 1 });
+    const active = {
       ...state,
       currentMatches: [
-        {
-          ...state.currentMatches[0],
-          id: 'continued',
-          status: 'Active',
-          winner: null,
-          completedAt: null,
-          teamAScore: 0,
-          teamBScore: 0,
-          servingTeam: 'A',
-          currentServerNumber: 2,
-          eligiblePlayers: [],
-        },
+        { ...state.currentMatches[0], status: 'Active' as const, startedAt: joinedAt },
       ],
-    });
+    };
+    start.flush(active);
     await settle();
-    expect(element.querySelector('article[aria-label="Court 1"]')!.textContent).toContain('Alex');
-    expect(element.querySelector('app-play-next-game')).toBeNull();
-    expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('0');
+    expect(element.querySelector('app-play-next-game select')).toBeNull();
+    expect(element.querySelector('.rally-actions')).not.toBeNull();
+    expect(element.querySelector('.service')?.textContent).toContain('Server 2');
   });
-
   it('holds a winning score correction until the host confirms a next game', async () => {
     const state = scoredRoom();
     await openRoom(state);
@@ -2530,8 +2490,6 @@ describe('Play experience', () => {
     expect(element.textContent).toContain('Team A wins');
     expect(element.querySelector('app-play-score-editor')).toBeNull();
     expect(element.querySelector('article[aria-label="Court 1"]')!.textContent).toContain('Alex');
-    click('Proceed to next game');
-    click('Cancel');
     http.expectNone((request) => request.method === 'POST');
     expect(element.querySelector('[aria-label="Team A score"]')?.textContent).toBe('11');
   });

@@ -12,6 +12,7 @@ public sealed class PlayRotationVerificationTests
             new(18, 0), new(21, 0), 1, null, Now, rotationMode: mode);
         for (var i = 0; i < count; i++) session.AddGuest($"Player {i}", Now.AddSeconds(i));
         session.Start(session.UpdatedAt);
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Current(PlaySession session) => session.Matches.Single(m => m.IsCurrent);
@@ -49,6 +50,7 @@ public sealed class PlayRotationVerificationTests
             }
             Assert.Equal(before, session.Players.Select(p => (p.Id, p.AdjustedGamesStarted, p.MissedOpportunities, p.QueueOrder)).ToArray());
             session.StartNextGame(match.Id, Ids(actual), false, session.UpdatedAt);
+            session.StartReadyGames();
         }
     }
 
@@ -73,6 +75,7 @@ public sealed class PlayRotationVerificationTests
             Assert.Equal(Ids(expectedIncoming), Ids(next.Skip(2)));
             Assert.Equal(4, Ids(next).Distinct().Count());
             session.StartNextGame(match.Id, Ids(next), false, now);
+            session.StartReadyGames();
             Assert.Equal(Ids(next), Current(session).Players.OrderBy(p => p.Position).Select(p => p.PlayerId));
             Assert.All(match.Players.Where(p => !retainedIds.Contains(p.PlayerId)),
                 slot => Assert.Contains(session.WaitingQueue, p => p.Id == slot.PlayerId));
@@ -90,6 +93,7 @@ public sealed class PlayRotationVerificationTests
         Assert.Equal(Ids(session.WaitingQueue).Order(), Ids(expected).Order());
         var manual = match.Players.OrderByDescending(p => p.Position).Select(p => p.PlayerId).ToArray();
         session.StartNextGame(match.Id, manual, true, session.UpdatedAt);
+        session.StartReadyGames();
         Assert.Equal(manual, Current(session).Players.OrderBy(p => p.Position).Select(p => p.PlayerId));
     }
 
@@ -114,6 +118,7 @@ public sealed class PlayRotationVerificationTests
             Assert.Equal(Ids(Pair(session, selected, match.Id, match)), Ids(next));
             for (var read = 0; read < 20; read++) Assert.Equal(Ids(next), Ids(session.NextLineup(match.Id)));
             session.StartNextGame(match.Id, Ids(next), false, now);
+            session.StartReadyGames();
             Assert.Equal(snapshot, match.Players.OrderBy(p => p.Position).Select(p => (p.PlayerId, p.Team, p.DisplayName)).ToArray());
             Assert.Equal(4, session.Matches.Where(m => m.IsCurrent).SelectMany(m => m.Players).Select(p => p.PlayerId).Distinct().Count());
         }

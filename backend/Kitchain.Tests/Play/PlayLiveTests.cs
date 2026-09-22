@@ -31,6 +31,8 @@ public sealed class PlayLiveTests
         var player = store.Session.Players.Last();
         await controller.AddGuest(" abcdef ", new AddPlayGuest("Late"), default);
         await controller.Start("ABCDEF", default);
+
+        store.Session.StartReadyGames();
         await controller.Rest("ABCDEF", player.Id, default);
         await controller.Rejoin("ABCDEF", player.Id, default);
         var match = store.Session.Matches.Single();
@@ -38,6 +40,8 @@ public sealed class PlayLiveTests
         Assert.Equal(5, notifier.Codes.Count);
         Assert.All(notifier.Codes, code => Assert.Equal("ABCDEF", code));
         await controller.Start("ABCDEF", default);
+
+        store.Session.StartReadyGames();
         await controller.FinishGame("ABCDEF", match.Id, default);
         await controller.AddGuest("ABCDEF", new AddPlayGuest("Late"), default);
         await controller.AddGuest("GHJKLM", new AddPlayGuest("Other"), default);
@@ -72,6 +76,8 @@ public sealed class PlayLiveTests
         Assert.Equal(2, notifier.Codes.Count);
         for (var i = 5; i <= 8; i++) store.Session.AddGuest($"Replacement {i}", store.Session.UpdatedAt);
         await controller.Start("ABCDEF", default);
+
+        store.Session.StartReadyGames();
         var match = store.Session.Matches.Single();
         await controller.FinishGame("ABCDEF", match.Id, default);
         var request = new StartNextPlayGame { PlayerIds = store.Session.NextLineup(match.Id).Select(p => p.Id).ToArray() };
@@ -102,6 +108,8 @@ public sealed class PlayLiveTests
         await controller.Edit("ABCDEF", input with { MaximumPlayers = 1 }, default);
         Assert.Single(notifier.Codes);
         await controller.Start("ABCDEF", default);
+
+        store.Session.StartReadyGames();
         await controller.Edit("ABCDEF", input, default);
         Assert.Equal(2, notifier.Codes.Count);
     }
@@ -111,6 +119,8 @@ public sealed class PlayLiveTests
     {
         var store = new Store();
         store.Session.Start(store.Session.UpdatedAt);
+
+        store.Session.StartReadyGames();
         var player = store.Session.WaitingQueue.Single();
         var notifier = new RecordingNotifier(store);
         var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
@@ -146,6 +156,8 @@ public sealed class PlayLiveTests
     {
         var store = new Store();
         store.Session.Start(store.Session.UpdatedAt);
+
+        store.Session.StartReadyGames();
         var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
         var notifier = new RecordingNotifier(store);
         var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
@@ -164,6 +176,8 @@ public sealed class PlayLiveTests
     {
         var store = new Store();
         store.Session.Start(store.Session.UpdatedAt);
+
+        store.Session.StartReadyGames();
         var notifier = new RecordingNotifier(store);
         var controller = new PlaySessionsController(
             new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF")),

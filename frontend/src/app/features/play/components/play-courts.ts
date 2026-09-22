@@ -19,7 +19,7 @@ import {
   PlayCallOutChange,
 } from '../data-access/play.models';
 import { PlayScoreEditor } from './play-score-editor';
-import { PlayNextGame } from './play-next-game';
+import { PlayNextGame, ReadyLineupAction } from './play-next-game';
 import { PlayRallyHistory } from './play-rally-history';
 import { DatePipe } from '@angular/common';
 
@@ -36,6 +36,7 @@ export class PlayCourts {
   readonly disabled = input(false);
   readonly finish = output<{ matchId: string; winner: PlayTeam | null }>();
   readonly startNext = output<{ matchId: string; lineup: NextPlayGame }>();
+  readonly readyAction = output<ReadyLineupAction>();
   readonly rally = output<{ matchId: string; winner: PlayTeam }>();
   readonly callOut = output<PlayCallOutChange>();
   readonly correction = output<{ matchId: string; score: PlayScoreCorrection }>();

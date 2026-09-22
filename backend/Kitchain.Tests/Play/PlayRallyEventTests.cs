@@ -10,6 +10,8 @@ public sealed class PlayRallyEventTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 14), new(18, 0), new(21, 0), 2, null, Now, mode);
         for (var i = 0; i < 12; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Court(PlaySession session, int number = 1) => session.Matches.Single(m => m.IsCurrent && m.CourtNumber == number);
@@ -101,6 +103,8 @@ public sealed class PlayRallyEventTests
         Assert.Throws<PlayConflictException>(() => session.RecordRally(match.Id, PlayTeam.A, Now));
         Assert.Equal(2, match.Rallies.Count);
         session.StartNextGame(match.Id, proposal, false, Now);
+
+        session.StartReadyGames();
         Assert.Empty(Court(session).Rallies);
         Assert.Equal(2, match.Rallies.Count);
         Assert.Equal(PlayRallyCallOut.Lob, winner.CallOut);

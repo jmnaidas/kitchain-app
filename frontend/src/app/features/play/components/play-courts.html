@@ -20,7 +20,9 @@
           court.match
             ? court.match.status === 'Completed'
               ? 'Game complete'
-              : 'Playing'
+              : court.match.status === 'Ready'
+                ? 'Ready'
+                : 'Playing'
             : 'Available'
         }}</span>
       </header>
@@ -32,27 +34,36 @@
             }}
           </p>
         }
-        <div class="teams" role="group" [attr.aria-label]="'Scoreboard on Court ' + court.number">
-          <div class="team-a">
-            <p class="eyebrow">Team A</p>
-            @if (session().mode === 'LiveScoring') {
-              <span class="score" aria-label="Team A score">{{ match.teamAScore }}</span>
-            }
-            @for (player of court.teamA; track player.playerId) {
-              <strong>{{ player.displayName }}</strong>
-            }
+        @if (match.status === 'Ready' && session().status === 'Active') {
+          <app-play-next-game
+            [match]="match"
+            [rotationMode]="session().rotationMode"
+            [disabled]="disabled()"
+            (readyAction)="readyAction.emit($event)"
+          />
+        } @else {
+          <div class="teams" role="group" [attr.aria-label]="'Scoreboard on Court ' + court.number">
+            <div class="team-a">
+              <p class="eyebrow">Team A</p>
+              @if (session().mode === 'LiveScoring') {
+                <span class="score" aria-label="Team A score">{{ match.teamAScore }}</span>
+              }
+              @for (player of court.teamA; track player.playerId) {
+                <strong>{{ player.displayName }}</strong>
+              }
+            </div>
+            <span class="versus">VS</span>
+            <div class="team-b">
+              <p class="eyebrow">Team B</p>
+              @if (session().mode === 'LiveScoring') {
+                <span class="score" aria-label="Team B score">{{ match.teamBScore }}</span>
+              }
+              @for (player of court.teamB; track player.playerId) {
+                <strong>{{ player.displayName }}</strong>
+              }
+            </div>
           </div>
-          <span class="versus">VS</span>
-          <div class="team-b">
-            <p class="eyebrow">Team B</p>
-            @if (session().mode === 'LiveScoring') {
-              <span class="score" aria-label="Team B score">{{ match.teamBScore }}</span>
-            }
-            @for (player of court.teamB; track player.playerId) {
-              <strong>{{ player.displayName }}</strong>
-            }
-          </div>
-        </div>
+        }
         @if (match.status === 'Active') {
           @if (session().mode === 'LiveScoring') {
             <p class="service">
@@ -163,7 +174,7 @@
               </button>
             }
           }
-        } @else if (session().status === 'Active') {
+        } @else if (match.status === 'Completed' && session().status === 'Active') {
           @if (court.summary; as summary) {
             <p class="completion-note">
               Finished {{ summary.completedAt | date: 'shortTime' }}
@@ -179,7 +190,7 @@
             (startNext)="startNext.emit({ matchId: match.id, lineup: $event })"
           />
         }
-        @if (session().mode === 'LiveScoring') {
+        @if (session().mode === 'LiveScoring' && match.status !== 'Ready') {
           @for (current of [match]; track current.id) {
             <app-play-rally-history
               [match]="current"

@@ -29,7 +29,10 @@ public sealed class PlayRallyApiTests(PostgresCourtFixture fixture) : IClassFixt
         }
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
-        return (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var ready = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        using var game = await fixture.Client.PostAsJsonAsync($"{url}/matches/{ready.CurrentMatches[0].Id}/start", new { expectedRevision = ready.CurrentMatches[0].LineupRevision });
+        Assert.Equal(HttpStatusCode.OK, game.StatusCode);
+        return (await game.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
     }
 
     [PostgresFact]

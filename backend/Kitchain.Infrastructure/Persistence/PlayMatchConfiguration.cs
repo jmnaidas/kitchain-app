@@ -10,12 +10,13 @@ internal sealed class PlayMatchConfiguration : IEntityTypeConfiguration<PlayMatc
     {
         match.ToTable("PlayMatches", table =>
         {
-            table.HasCheckConstraint("CK_PlayMatches_Current", "\"Status\" <> 'Active' OR \"IsCurrent\"");
+            table.HasCheckConstraint("CK_PlayMatches_Current", "\"Status\" NOT IN ('Active', 'Ready') OR \"IsCurrent\"");
+            table.HasCheckConstraint("CK_PlayMatches_LineupRevision", "\"LineupRevision\" >= 0");
             table.HasCheckConstraint("CK_PlayMatches_Winner", "\"Winner\" IS NULL OR (\"Status\" = 'Completed' AND \"Winner\" IN ('A', 'B'))");
             table.HasCheckConstraint("CK_PlayMatches_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
             table.HasCheckConstraint("CK_PlayMatches_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");
             table.HasCheckConstraint("CK_PlayMatches_Court", "\"CourtNumber\" > 0");
-            table.HasCheckConstraint("CK_PlayMatches_Status", "(\"Status\" = 'Active' AND \"CompletedAt\" IS NULL) OR (\"Status\" = 'Completed' AND \"CompletedAt\" >= \"StartedAt\" AND \"CompletedAt\" IS NOT NULL)");
+            table.HasCheckConstraint("CK_PlayMatches_Status", "(\"Status\" = 'Ready' AND \"StartedAt\" IS NULL AND \"CompletedAt\" IS NULL AND \"TeamAScore\" = 0 AND \"TeamBScore\" = 0) OR (\"Status\" = 'Active' AND \"StartedAt\" IS NOT NULL AND \"CompletedAt\" IS NULL) OR (\"Status\" = 'Completed' AND \"StartedAt\" IS NOT NULL AND \"CompletedAt\" >= \"StartedAt\" AND \"CompletedAt\" IS NOT NULL)");
         });
         match.HasKey(m => m.Id);
         match.Property(m => m.Id).ValueGeneratedNever();

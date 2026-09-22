@@ -22,6 +22,13 @@ public sealed record CreatePlaySession
 public sealed record AddPlayGuest([Required] string DisplayName);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ReadyPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ChangePlayLineupSlot([Required, Range(1, 4)] int? Position,
+    [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record StartNextPlayGame
 {
     [Required, MinLength(4), MaxLength(4)] public Guid[]? PlayerIds { get; init; }
@@ -68,10 +75,11 @@ public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayNam
 public sealed record PlayMatchPlayerDetail(Guid PlayerId, string DisplayName, PlayTeam Team, int Position);
 public sealed record PlayQueueDetail(IReadOnlyList<PlayPlayerDetail> NextUp,
     IReadOnlyList<PlayPlayerDetail> Waiting, int NeededPlayers, int HeldPlayers, int? CourtNumber);
-public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus Status, DateTimeOffset StartedAt,
+public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus Status, DateTimeOffset? StartedAt,
     IReadOnlyList<PlayMatchPlayerDetail> Players, int TeamAScore, int TeamBScore, PlayTeam ServingTeam, int CurrentServerNumber,
     DateTimeOffset? CompletedAt, PlayTeam? Winner, IReadOnlyList<PlayMatchPlayerDetail> NextLineup,
-    IReadOnlyList<PlayPlayerDetail> EligiblePlayers, IReadOnlyList<PlayRallyEventDetail> Rallies);
+    IReadOnlyList<PlayPlayerDetail> EligiblePlayers, IReadOnlyList<PlayRallyEventDetail> Rallies,
+    long LineupRevision = 0, bool IsLineupOverridden = false);
 
 public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, DateOnly SessionDate,
     TimeOnly StartTime, TimeOnly EndTime, int NumberOfCourts, int? MaximumPlayers, PlaySessionStatus Status,
@@ -157,6 +165,17 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> StartAsync(string code, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.Start(Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> StartGameAsync(string code, Guid matchId, ReadyPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.StartGame(matchId, input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
+
+    public Task<PlaySessionDetail?> ResetRecommendationAsync(string code, Guid matchId, ReadyPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.ResetRecommendation(matchId, input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
+
+    public Task<PlaySessionDetail?> ChangeLineupSlotAsync(string code, Guid matchId, ChangePlayLineupSlot input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.ChangeLineupSlot(matchId, input.Position ?? throw new ArgumentException("Position is required."),
+            input.PlayerId ?? throw new ArgumentException("Player is required."),
+            input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
+
     public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken, PlayTeam? winner = null) =>
         UpdateAsync(code, s => s.FinishGame(matchId, Now(s), winner), cancellationToken);
 
@@ -205,12 +224,14 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
                 ? session.NextLineup(match.Id).Select((p, i) => new PlayMatchPlayerDetail(p.Id, p.DisplayName,
                     i < 2 ? PlayTeam.A : PlayTeam.B, i + 1)).ToArray() : [],
             match.Status == PlayMatchStatus.Completed && session.Status == PlaySessionStatus.Active
-                ? session.EligibleNextPlayers(match.Id).Select(Player).ToArray() : [],
-            Rallies(match));
+                ? session.EligibleNextPlayers(match.Id).Select(Player).ToArray()
+                : match.Status == PlayMatchStatus.Ready && session.Status == PlaySessionStatus.Active
+                    ? session.EligibleReadyPlayers(match.Id).Select(Player).ToArray() : [],
+            Rallies(match), match.LineupRevision, match.IsLineupOverridden);
         var scoring = session.Mode == PlaySessionMode.LiveScoring;
         var history = session.Matches.Where(m => m.Status == PlayMatchStatus.Completed)
             .OrderByDescending(m => m.CompletedAt).ThenByDescending(m => m.StartedAt).ThenByDescending(m => m.Id)
-            .Select(m => new PlayMatchSummary(m.Id, m.CourtNumber, Participants(m), m.StartedAt, m.CompletedAt,
+            .Select(m => new PlayMatchSummary(m.Id, m.CourtNumber, Participants(m), m.StartedAt!.Value, m.CompletedAt,
                 scoring ? m.TeamAScore : null, scoring ? m.TeamBScore : null, m.Winner,
                 scoring ? m.Rallies.Count : null, scoring ? m.Rallies.Count(r => r.CallOut.HasValue) : null,
                 scoring ? m.Rallies.Where(r => r.CallOut.HasValue).GroupBy(r => r.CallOut!.Value)

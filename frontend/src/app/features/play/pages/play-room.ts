@@ -19,6 +19,7 @@ import { Observable, Subscription, switchMap, tap } from 'rxjs';
 import { PlayPlayerList, PlayerStateChange } from '../components/play-player-list';
 import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
+import { ReadyLineupAction } from '../components/play-next-game';
 import { PlayMatchSummary } from '../components/play-match-summary';
 import { PlayInsights } from '../components/play-insights';
 import { PlaySessionForm } from '../components/play-session-form';
@@ -364,7 +365,7 @@ export class PlayRoom {
     this.change(
       'next:' + intent.matchId,
       this.api.startNext(this.code, intent.matchId, intent.lineup),
-      'Next game started. Courts and queue are up to date.',
+      'Next lineup is Ready. Review the names, then Start Game.',
     );
   }
   protected finishGame({ matchId, winner }: { matchId: string; winner: PlayTeam | null }) {
@@ -373,6 +374,29 @@ export class PlayRoom {
       `finish:${matchId}`,
       this.api.finish(this.code, matchId, winner),
       'Game complete. Review the next lineup when ready.',
+    );
+  }
+  protected readyLineup(intent: ReadyLineupAction) {
+    if (this.session()?.status !== 'Active') return;
+    const operation =
+      intent.action === 'slot'
+        ? this.api.changeLineup(
+            this.code,
+            intent.matchId,
+            intent.position!,
+            intent.playerId!,
+            intent.expectedRevision,
+          )
+        : this.api.readyAction(
+            this.code,
+            intent.matchId,
+            intent.action === 'reset' ? 'lineup/reset' : 'start',
+            intent.expectedRevision,
+          );
+    this.change(
+      `lineup:${intent.matchId}`,
+      operation,
+      intent.action === 'start' ? 'Game started. The lineup is locked.' : 'Ready lineup updated.',
     );
   }
   protected recordRally(intent: { matchId: string; winner: PlayTeam }) {

@@ -6,7 +6,7 @@ internal static class PlayRotationPolicy
     public static IReadOnlyList<PlaySessionPlayer> Recommend(Guid sessionId, PlayRotationMode mode,
         IReadOnlyList<PlaySessionPlayer> eligible, IReadOnlyCollection<PlayMatch> history, Guid seed)
     {
-        var previous = history.SingleOrDefault(m => m.Id == seed && m.IsCurrent && m.Status == PlayMatchStatus.Completed);
+        var previous = history.SingleOrDefault(m => m.Id == seed && m.Status == PlayMatchStatus.Completed);
         PlaySessionPlayer[] Fair(IReadOnlyList<PlaySessionPlayer> pool, int count) =>
             PlayFairRotation.Select(pool, history, seed, count);
         IReadOnlyList<PlaySessionPlayer> Pair(IReadOnlyList<PlaySessionPlayer> selected) =>

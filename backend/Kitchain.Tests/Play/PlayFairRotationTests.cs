@@ -10,6 +10,8 @@ public sealed class PlayFairRotationTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 14), new(18, 0), new(21, 0), courts, null, Now);
         for (var i = 0; i < count; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Court(PlaySession session, int court = 1) => session.Matches.Single(m => m.IsCurrent && m.CourtNumber == court);
@@ -21,6 +23,8 @@ public sealed class PlayFairRotationTests
         var now = session.UpdatedAt.AddMinutes(10);
         session.FinishGame(match.Id, now);
         session.StartNextGame(match.Id, manual ?? Preview(session, match), manual is not null, now);
+
+        session.StartReadyGames();
     }
     private static object[] Stats(PlaySession session) => session.Players.OrderBy(p => p.Id)
         .Select(p => (object)(p.Id, p.State, p.AdjustedGamesStarted, p.MissedOpportunities, p.WaitingSince, p.QueueOrder)).ToArray();
@@ -47,6 +51,8 @@ public sealed class PlayFairRotationTests
         Assert.Equal(4 - waitingSelected, proposal.Count(returning.Contains));
         Assert.All(otherIds, id => Assert.DoesNotContain(id, proposal));
         session.StartNextGame(match.Id, proposal, false, Now);
+
+        session.StartReadyGames();
         Assert.Same(other, Court(session, 2));
         Assert.Equal(otherIds, Ids(other));
         Assert.Equal(8, session.Matches.Where(m => m.IsCurrent).SelectMany(Ids).Distinct().Count());
@@ -104,6 +110,8 @@ public sealed class PlayFairRotationTests
         var eligible = session.EligibleNextPlayers(match.Id).ToArray();
         var counts = eligible.ToDictionary(p => p.Id, p => (p.AdjustedGamesStarted, p.MissedOpportunities));
         session.StartNextGame(match.Id, selected, true, Now);
+
+        session.StartReadyGames();
         Assert.Equal(selected, Ids(Court(session)));
         foreach (var player in eligible)
         {
@@ -125,6 +133,8 @@ public sealed class PlayFairRotationTests
         var stale = Preview(session, first);
         Assert.All(Ids(second), id => Assert.DoesNotContain(id, session.EligibleNextPlayers(first.Id).Select(p => p.Id)));
         session.StartNextGame(second.Id, Preview(session, second), false, Now);
+
+        session.StartReadyGames();
         var stats = Stats(session);
         var ticket = session.NextQueueOrder;
         Assert.Throws<PlayConflictException>(() => session.StartNextGame(first.Id, stale, true, Now));

@@ -11,6 +11,8 @@ public sealed class PlayRosterTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 15), new(18, 0), new(21, 0), 1, null, Now, mode);
         for (var i = 0; i < count; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Current(PlaySession session) => session.Matches.Single(m => m.IsCurrent);
@@ -40,6 +42,8 @@ public sealed class PlayRosterTests
         session.RenameGuest(player.Id, "Current name", Now);
         Assert.Throws<PlayConflictException>(() => session.RemoveGuest(player.Id, Now));
         session.StartNextGame(first.Id, session.NextLineup(first.Id).Select(p => p.Id).ToArray(), false, Now);
+
+        session.StartReadyGames();
         Assert.Equal(PlayPlayerState.Waiting, player.State);
         var fairness = player.AdjustedGamesStarted;
         session.Rest(player.Id, Now);
@@ -76,6 +80,8 @@ public sealed class PlayRosterTests
             var game = Current(session);
             session.FinishGame(game.Id, Now);
             session.StartNextGame(game.Id, session.NextLineup(game.Id).Select(p => p.Id).ToArray(), false, Now);
+
+            session.StartReadyGames();
         }
         var history = (await Read(session)).MatchHistory;
         var previous = chosen.AdjustedGamesStarted;
@@ -136,6 +142,8 @@ public sealed class PlayRosterTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 15), new(18, 0), new(21, 0), 2, null, Now);
         for (var i = 0; i < 16; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         var courtTwo = session.Matches.Single(m => m.CourtNumber == 2);
         session.FinishGame(courtTwo.Id, Now);
         session.FinishGame(session.Matches.Single(m => m.CourtNumber == 1).Id, Now.AddMinutes(1));

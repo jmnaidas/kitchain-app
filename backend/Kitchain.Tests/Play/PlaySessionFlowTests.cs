@@ -29,6 +29,8 @@ public sealed class PlaySessionFlowTests
         Assert.Equal(players.Where(p => p != players[1]).Select(p => p.Id), Queue(session));
         Assert.Equal(new long?[] { 1, 3, 4, 5, 6, 7, 8 }, session.WaitingQueue.Select(p => p.QueueOrder));
         session.Start(Now);
+
+        session.StartReadyGames();
         session.RenameGuest(players[0].Id, "Other", Now);
         Assert.Equal("Other", players[0].DisplayName);
         var playing = session.Players.First(p => p.State == PlayPlayerState.Playing);
@@ -41,6 +43,8 @@ public sealed class PlaySessionFlowTests
         var session = Draft(9);
         Assert.Equal(PlaySessionMode.QueueOnly, session.Mode);
         session.Start(Now);
+
+        session.StartReadyGames();
         var match = Assert.Single(session.Matches);
         var queue = Queue(session);
         var tickets = session.NextQueueOrder;
@@ -58,6 +62,8 @@ public sealed class PlaySessionFlowTests
         Assert.Equal(tickets, session.NextQueueOrder);
         Assert.All(session.Players.Where(p => returning.Contains(p.Id)), p => Assert.Equal(PlayPlayerState.Playing, p.State));
         session.StartNextGame(match.Id, Lineup(session, match), false, Now);
+
+        session.StartReadyGames();
         Assert.False(match.IsCurrent);
         var next = Assert.Single(session.Matches.Where(m => m.IsCurrent));
         Assert.Equal(queue.Take(4).Order(), next.Players.Select(p => p.PlayerId).Order());
@@ -71,6 +77,8 @@ public sealed class PlaySessionFlowTests
     {
         var session = Draft(10, mode: PlaySessionMode.LiveScoring);
         session.Start(Now);
+
+        session.StartReadyGames();
         var match = Assert.Single(session.Matches);
         session.FinishGame(match.Id, Now);
         Assert.Null(match.Winner);
@@ -78,6 +86,8 @@ public sealed class PlaySessionFlowTests
         var selected = new[] { queue[5], queue[1], queue[4], queue[0] };
         Assert.Throws<PlayConflictException>(() => session.StartNextGame(match.Id, selected, false, Now));
         session.StartNextGame(match.Id, selected, true, Now);
+
+        session.StartReadyGames();
         var next = Assert.Single(session.Matches.Where(m => m.IsCurrent));
         Assert.Equal(selected, next.Players.OrderBy(p => p.Position).Select(p => p.PlayerId));
         Assert.Equal(new[] { PlayTeam.A, PlayTeam.A, PlayTeam.B, PlayTeam.B }, next.Players.OrderBy(p => p.Position).Select(p => p.Team));
@@ -90,6 +100,8 @@ public sealed class PlaySessionFlowTests
     {
         var session = Draft(14, 2);
         session.Start(Now);
+
+        session.StartReadyGames();
         var match = session.Matches.First();
         var other = session.Matches.Last();
         session.FinishGame(match.Id, Now);
@@ -112,10 +124,14 @@ public sealed class PlaySessionFlowTests
     {
         var session = Draft(12, 2);
         session.Start(Now);
+
+        session.StartReadyGames();
         var games = session.Matches.ToArray();
         foreach (var game in games) session.FinishGame(game.Id, Now);
         var stale = Lineup(session, games[0]);
         session.StartNextGame(games[1].Id, Lineup(session, games[1]), false, Now);
+
+        session.StartReadyGames();
         Assert.Throws<PlayConflictException>(() => session.StartNextGame(games[0].Id, stale, true, Now));
         Assert.True(games[0].IsCurrent);
         var currentIds = session.Matches.Where(m => m.IsCurrent).SelectMany(m => m.Players).Select(p => p.PlayerId).ToArray();
@@ -127,6 +143,8 @@ public sealed class PlaySessionFlowTests
     {
         var session = Draft(7, mode: PlaySessionMode.LiveScoring);
         session.Start(Now);
+
+        session.StartReadyGames();
         var match = Assert.Single(session.Matches);
         session.FinishGame(match.Id, Now);
         Assert.Equal(4, Lineup(session, match).Length);

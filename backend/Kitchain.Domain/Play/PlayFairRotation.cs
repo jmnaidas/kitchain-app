@@ -10,7 +10,7 @@ internal static class PlayFairRotation
         IEnumerable<PlayMatch> history, Guid seed, int count = 4)
     {
         if (eligible.Count < count) return eligible.ToArray();
-        var matches = history.OrderByDescending(m => m.StartedAt).ThenByDescending(m => m.Id).ToArray();
+        var matches = history.Where(m => m.Status != PlayMatchStatus.Ready).OrderByDescending(m => m.StartedAt).ThenByDescending(m => m.Id).ToArray();
         var mandatory = new List<PlaySessionPlayer>();
         foreach (var tier in eligible.GroupBy(p => (p.AdjustedGamesStarted, Band: p.MissedOpportunities / 2))
             .OrderBy(g => g.Key.AdjustedGamesStarted).ThenByDescending(g => g.Key.Band))

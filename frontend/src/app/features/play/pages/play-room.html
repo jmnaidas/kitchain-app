@@ -208,6 +208,7 @@
               [disabled]="blocked()"
               (finish)="finishGame($event)"
               (startNext)="startNextGame($event)"
+              (readyAction)="readyLineup($event)"
               (rally)="recordRally($event)"
               (callOut)="editCallOut($event)"
               (correction)="correctScore($event)"

@@ -10,6 +10,8 @@ public sealed class PlayScoringTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 2, null, Now, PlaySessionMode.LiveScoring);
         for (var i = 1; i <= 14; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
 
@@ -65,6 +67,8 @@ public sealed class PlayScoringTests
         Assert.Equal(2, session.Matches.Count);
         Assert.Equal(queue, session.WaitingQueue.Select(p => p.Id));
         session.StartNextGame(match.Id, session.NextLineup(match.Id).Select(p => p.Id).ToArray(), false, Now.AddMinutes(1));
+
+        session.StartReadyGames();
         var replacement = session.Matches.Single(m => m.CourtNumber == 2 && m.Status == PlayMatchStatus.Active);
         Assert.Equal(queue.Take(4).Order(), replacement.Players.Select(p => p.PlayerId).Order());
         Assert.Equal((0, 0, PlayTeam.A, 2), (replacement.TeamAScore, replacement.TeamBScore, replacement.ServingTeam, replacement.CurrentServerNumber));

@@ -56,7 +56,8 @@ public sealed class PlaySession
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<PlaySessionPlayer> Players => _players.AsReadOnly();
     public IReadOnlyCollection<PlayMatch> Matches => _matches.AsReadOnly();
-    public IReadOnlyList<PlaySessionPlayer> WaitingQueue => _players.Where(p => p.State == PlayPlayerState.Waiting)
+    public IReadOnlyList<PlaySessionPlayer> WaitingQueue => _players.Where(p => p.State == PlayPlayerState.Waiting &&
+        !_matches.Any(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready && m.Players.Any(slot => slot.PlayerId == p.Id)))
         .OrderBy(p => p.QueueOrder).ThenBy(p => p.Id).ToArray();
 
     public static string NormalizeCode(string? code) => code?.Trim().ToUpperInvariant() ?? "";
@@ -82,6 +83,7 @@ public sealed class PlaySession
     {
         EnsureOpen(now);
         EnsureActivePlayers();
+        EnsureNotReserved(playerId);
         FindPlayer(playerId).Rest(now);
         UpdatedAt = now.ToUniversalTime();
     }
@@ -95,7 +97,7 @@ public sealed class PlaySession
             throw new PlayConflictException("A player with this name is already in the session. Use a distinct name.");
         player.Rename(displayName!, now);
         // Active games follow roster names; completed participant snapshots never change.
-        foreach (var slot in _matches.Where(m => m.Status == PlayMatchStatus.Active)
+        foreach (var slot in _matches.Where(m => m.Status is PlayMatchStatus.Active or PlayMatchStatus.Ready)
             .SelectMany(m => m.Players).Where(p => p.PlayerId == playerId))
             slot.Rename(player.DisplayName);
         UpdatedAt = now.ToUniversalTime();
@@ -104,6 +106,7 @@ public sealed class PlaySession
     public void RemoveGuest(Guid playerId, DateTimeOffset now)
     {
         EnsureOpen(now);
+        EnsureNotReserved(playerId);
         var player = FindPlayer(playerId);
         player.Remove(now);
         if (!_matches.Any(m => m.Players.Any(p => p.PlayerId == playerId))) _players.Remove(player);
@@ -186,16 +189,85 @@ public sealed class PlaySession
             throw new PlayConflictException("The game participants have changed. Refresh the session.");
         if (NextQueueOrder > long.MaxValue - 4)
             throw new PlayConflictException("This session cannot allocate another queue position.");
-        ValidateOpportunity(eligible.Values);
         // All eligibility, lifecycle and ticket checks precede any player movement.
         // Continuing players receive a return ticket too, then immediately leave the queue.
         foreach (var player in returning) player.Finish(++NextQueueOrder, now);
         var next = new PlayMatch(Id, match.CourtNumber, selected, now);
+        if (overrideLineup) next.SetLineup(selected, true);
         match.ReleaseCourt();
-        foreach (var player in selected) player.Play(now);
-        RecordOpportunity(eligible.Values, playerIds);
         _matches.Add(next);
         UpdatedAt = now.ToUniversalTime();
+    }
+
+    public IReadOnlyList<PlaySessionPlayer> EligibleReadyPlayers(Guid matchId)
+    {
+        var match = ReadyMatch(matchId);
+        var own = match.Players.Select(p => p.PlayerId).ToHashSet();
+        return WaitingQueue.Concat(_players.Where(p => own.Contains(p.Id) && p.State == PlayPlayerState.Waiting && !p.IsRemoved)).ToArray();
+    }
+
+    public IReadOnlyList<PlaySessionPlayer> ReadyRecommendation(Guid matchId)
+    {
+        var match = ReadyMatch(matchId);
+        var previous = _matches.Where(m => m.CourtNumber == match.CourtNumber && m.Status == PlayMatchStatus.Completed)
+            .OrderByDescending(m => m.CompletedAt).ThenByDescending(m => m.StartedAt).FirstOrDefault();
+        return Recommend(EligibleReadyPlayers(matchId), previous?.Id ?? Id);
+    }
+
+    public void ChangeLineupSlot(Guid matchId, int position, Guid playerId, long expectedRevision, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        var match = ReadyMatch(matchId);
+        match.CheckReady(expectedRevision);
+        if (position is < 1 or > 4) throw new ArgumentException("Choose a position from 1 to 4.", nameof(position));
+        var eligible = EligibleReadyPlayers(matchId).ToDictionary(p => p.Id);
+        if (!eligible.ContainsKey(playerId)) throw new PlayConflictException("That player is unavailable or assigned to another court.");
+        var ids = match.Players.OrderBy(p => p.Position).Select(p => p.PlayerId).ToArray();
+        var other = Array.IndexOf(ids, playerId);
+        if (other == position - 1) return;
+        if (other >= 0) ids[other] = ids[position - 1];
+        ids[position - 1] = playerId;
+        match.SetLineup(ids.Select(id => eligible[id]).ToArray(), true);
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    public void ResetRecommendation(Guid matchId, long expectedRevision, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        var match = ReadyMatch(matchId);
+        match.CheckReady(expectedRevision);
+        match.SetLineup(ReadyRecommendation(matchId), false);
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    public void StartGame(Guid matchId, long expectedRevision, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        var match = ReadyMatch(matchId);
+        match.CheckReady(expectedRevision);
+        var eligible = EligibleReadyPlayers(matchId);
+        var ids = match.Players.OrderBy(p => p.Position).Select(p => p.PlayerId).ToArray();
+        if (ids.Length != 4 || ids.Distinct().Count() != 4 || ids.Any(id => !eligible.Any(p => p.Id == id)))
+            throw new PlayConflictException("The lineup is no longer eligible. Refresh before starting.");
+        ValidateOpportunity(eligible);
+        // Reservations never count as participation. Only this final started lineup does.
+        match.Start(now);
+        foreach (var id in ids) FindPlayer(id).Play(now);
+        RecordOpportunity(eligible, ids);
+        UpdatedAt = now.ToUniversalTime();
+    }
+
+    private PlayMatch ReadyMatch(Guid id)
+    {
+        if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can prepare a game.");
+        return _matches.SingleOrDefault(m => m.Id == id && m.IsCurrent && m.Status == PlayMatchStatus.Ready)
+            ?? throw new PlayConflictException("This court is no longer Ready. Refresh the session.");
+    }
+
+    private void EnsureNotReserved(Guid playerId)
+    {
+        if (_matches.Any(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready && m.Players.Any(p => p.PlayerId == playerId)))
+            throw new PlayConflictException("Replace this player in the Ready lineup before sitting out or removing them.");
     }
 
     public void RecordRally(Guid matchId, PlayTeam winner, DateTimeOffset now)
@@ -252,7 +324,10 @@ public sealed class PlaySession
         var eligible = completed is null ? WaitingQueue : EligibleNextPlayers(completed.Id);
         IReadOnlyList<PlaySessionPlayer> selected = Status != PlaySessionStatus.Ended && eligible.Count >= 4
             ? Recommend(eligible, completed?.Id ?? Id) : [];
-        var next = selected.Where(p => p.State == PlayPlayerState.Waiting).ToArray();
+        var ready = Status == PlaySessionStatus.Active
+            ? _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready).OrderBy(m => m.CourtNumber)
+                .SelectMany(m => m.Players.OrderBy(p => p.Position)).Select(p => FindPlayer(p.PlayerId)).ToArray() : [];
+        var next = ready.Concat(selected.Where(p => p.State == PlayPlayerState.Waiting)).DistinctBy(p => p.Id).ToArray();
         var ids = next.Select(p => p.Id).ToHashSet();
         var waiting = WaitingQueue.Where(p => !ids.Contains(p.Id))
             .OrderBy(p => p.AdjustedGamesStarted).ThenByDescending(p => p.MissedOpportunities / 2)
@@ -269,11 +344,8 @@ public sealed class PlaySession
         {
             if (occupied.Contains((int)court)) continue;
             var eligible = WaitingQueue;
-            ValidateOpportunity(eligible);
             var players = Recommend(eligible, Id);
             var match = new PlayMatch(Id, (int)court, players, now);
-            foreach (var player in players) player.Play(now);
-            RecordOpportunity(eligible, players.Select(p => p.Id).ToArray());
             _matches.Add(match);
         }
     }

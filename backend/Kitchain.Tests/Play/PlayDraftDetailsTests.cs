@@ -53,6 +53,8 @@ public sealed class PlayDraftDetailsTests
         Assert.Null(session.MaximumPlayers);
         Assert.Equal(PlaySessionMode.QueueOnly, session.Mode);
         session.Start(Now);
+
+        session.StartReadyGames();
         Assert.Throws<PlayConflictException>(() => session.EditDetails("Changed", new(2026, 9, 14), new(18, 0), new(2026, 9, 14), new(21, 0), 1, null, PlaySessionMode.QueueOnly, Now));
         session.End(Now);
         Assert.Throws<PlayConflictException>(() => session.EditDetails("Changed", new(2026, 9, 14), new(18, 0), new(2026, 9, 14), new(21, 0), 1, null, PlaySessionMode.QueueOnly, Now));

@@ -52,7 +52,19 @@ public sealed class EfPlaySessionStore(KitchainDbContext db) : IPlaySessionStore
         await db.Entry(session).Collection(s => s.Matches).Query()
             .AsSingleQuery().Include(m => m.Players).Include(m => m.Rallies).LoadAsync(cancellationToken);
         var current = session.Matches.Where(m => m.IsCurrent).ToArray();
+        var readySlots = current.Where(m => m.Status == PlayMatchStatus.Ready)
+            .ToDictionary(m => m.Id, m => m.Players.ToArray());
         update(session);
+        // Swaps otherwise transiently violate the unique position index. Replace only edited
+        // Ready slots within the same locked transaction; played history is never rewritten.
+        foreach (var match in current.Where(m => readySlots.ContainsKey(m.Id) &&
+            !m.Players.SequenceEqual(readySlots[m.Id])))
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM \"PlayMatchPlayers\" WHERE \"MatchId\" = {match.Id}", cancellationToken);
+            foreach (var slot in readySlots[match.Id]) db.Entry(slot).State = EntityState.Detached;
+            foreach (var slot in match.Players) db.Entry(slot).State = EntityState.Added;
+        }
         // Release the filtered unique court slot before EF inserts its replacement match.
         // Both this update and the full aggregate save remain inside the session transaction.
         foreach (var completed in current.Where(m => !m.IsCurrent))

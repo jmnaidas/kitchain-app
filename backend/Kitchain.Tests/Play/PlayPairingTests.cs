@@ -10,6 +10,8 @@ public sealed class PlayPairingTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 14), new(18, 0), new(21, 0), courts, null, Now, mode);
         for (var i = 0; i < count; i++) session.AddGuest($"Player {i}", session.UpdatedAt);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Current(PlaySession session, int court = 1) => session.Matches.Single(m => m.IsCurrent && m.CourtNumber == court);
@@ -20,6 +22,8 @@ public sealed class PlayPairingTests
         var match = Current(session);
         session.FinishGame(match.Id, session.UpdatedAt.AddMinutes(1));
         session.StartNextGame(match.Id, slots, true, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(slots, Slots(Current(session)));
     }
     private static bool Partners(Guid[] slots, Guid a, Guid b) =>
@@ -51,6 +55,8 @@ public sealed class PlayPairingTests
         Assert.Equal(ticket, session.NextQueueOrder);
         Assert.Equal(queue, session.WaitingQueue.Select(p => p.Id));
         session.StartNextGame(court.Id, recommendation, false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(recommendation, Slots(Current(session)));
         Assert.Same(other, Current(session, 2));
         Assert.Equal(otherSlots, Slots(other));
@@ -79,6 +85,8 @@ public sealed class PlayPairingTests
         Assert.Equal(proposal, Proposal(session));
         Assert.All(unrelated.Matches, match => Assert.Equal(unrelated.Id, match.SessionId));
         session.StartNextGame(Current(session).Id, proposal, false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(1, Count(session, proposal[0], proposal[1]));
     }
 
@@ -98,6 +106,8 @@ public sealed class PlayPairingTests
         Assert.True(Partners(proposal, p[0], p[2]));
         Assert.True(Partners(proposal, p[1], p[3]));
         session.StartNextGame(Current(session).Id, proposal, false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Continue(session, arrangements[2]);
         Assert.Equal(arrangements[2], Slots(Current(session)));
         Assert.Equal(5, Count(session, p[0], p[3]));
@@ -116,6 +126,8 @@ public sealed class PlayPairingTests
         Assert.True(Partners(recommendation, p[0], p[1]));
         Assert.True(Partners(recommendation, p[2], p[3]));
         session.StartNextGame(Current(session).Id, recommendation, false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(2, Count(session, p[0], p[1]));
     }
 
@@ -141,6 +153,8 @@ public sealed class PlayPairingTests
         Assert.Equal(tickets, session.NextQueueOrder);
         Assert.True(court.IsCurrent);
         session.StartNextGame(court.Id, selected, true, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(selected, Slots(Current(session)));
         Assert.Equal(new[] { waiting[2], waiting[4] }.Concat(old.Skip(1)), session.WaitingQueue.Select(p => p.Id));
         Assert.Equal((6, 5, PlayTeam.B, 1), (other.TeamAScore, other.TeamBScore, other.ServingTeam, other.CurrentServerNumber));
@@ -158,6 +172,8 @@ public sealed class PlayPairingTests
         Assert.Equal(selected.Order(), Proposal(session).Order());
         Assert.Equal(4, session.EligibleNextPlayers(court.Id).Count);
         session.StartNextGame(court.Id, selected, true, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(selected, Slots(Current(session)));
         Assert.Empty(session.WaitingQueue);
         Assert.Equal(2, session.Matches.Count);
@@ -183,6 +199,8 @@ public sealed class PlayPairingTests
         Assert.All(session.Players.Where(p => Slots(court).Contains(p.Id)), p => Assert.Equal(PlayPlayerState.Playing, p.State));
         Assert.Equal((4, 6, PlayTeam.B, 2), (other.TeamAScore, other.TeamBScore, other.ServingTeam, other.CurrentServerNumber));
         session.StartNextGame(court.Id, Proposal(session), false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Equal(3, session.Matches.Count);
         Assert.Same(other, Current(session, 2));
     }

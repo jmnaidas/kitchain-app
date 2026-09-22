@@ -45,6 +45,7 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        await fixture.Client.StartReadyGames(url);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
         using var activeEdit = await fixture.Client.PatchAsJsonAsync(url, PlaySessionServiceTests.Input with { RotationMode = mode }, Json);
         Assert.Equal(HttpStatusCode.Conflict, activeEdit.StatusCode);
@@ -160,8 +161,9 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             ids.Add((await added.Content.ReadFromJsonAsync<PlayPlayerDetail>(Json))!.Id);
         }
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        await fixture.Client.StartReadyGames(url);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
-        var active = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var active = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         var match = Assert.Single(active.ActiveMatches);
         var finishes = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
             fixture.Client.PostAsync($"{url}/matches/{match.Id}/finish", null)));
@@ -187,6 +189,7 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             Assert.Single(confirmations, response => response.StatusCode == HttpStatusCode.Conflict);
         }
         finally { foreach (var response in confirmations) response.Dispose(); }
+        await fixture.Client.StartReadyGames(url);
         saved = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         var replacement = Assert.Single(saved.ActiveMatches);
         Assert.NotEqual(match.Id, replacement.Id);
@@ -212,7 +215,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         }
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
-        var match = Assert.Single((await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!.ActiveMatches);
+        await fixture.Client.StartReadyGames(url);
+        var match = Assert.Single((await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!.ActiveMatches);
         var rallyUrl = $"{url}/matches/{match.Id}/rallies";
         var rallies = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => fixture.Client.PostAsJsonAsync(rallyUrl, new { winner = "A" })));
         try { Assert.All(rallies, result => Assert.Equal(HttpStatusCode.OK, result.StatusCode)); }
@@ -269,7 +273,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         Assert.Equal("New Name", draft.WaitingQueue[0].DisplayName);
         Assert.Equal(new long?[] { 1, 3, 4, 5, 6, 7, 8, 9 }, draft.WaitingQueue.Select(p => p.QueueOrder));
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
-        var active = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        await fixture.Client.StartReadyGames(url);
+        var active = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         var match = Assert.Single(active.CurrentMatches);
         using var scoring = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/rallies", new { winner = "A" });
         Assert.Equal(HttpStatusCode.Conflict, scoring.StatusCode);
@@ -317,7 +322,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         using var invalidDate = await fixture.Client.PatchAsJsonAsync(url, input with { EndDate = input.Date }, Json);
         Assert.Equal(HttpStatusCode.BadRequest, invalidDate.StatusCode);
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
-        var active = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        await fixture.Client.StartReadyGames(url);
+        var active = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         using var forbidden = await fixture.Client.PatchAsJsonAsync(url, input, Json);
         Assert.Equal(HttpStatusCode.Conflict, forbidden.StatusCode);
         var match = active.CurrentMatches[0];
@@ -333,6 +339,7 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
         }
         using var confirmed = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/next", new { playerIds = proposal.Select(p => p.PlayerId), overrideLineup = false });
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
+        await fixture.Client.StartReadyGames(url);
         await using var saved = fixture.CreateDbContext();
         var savedSession = await saved.Set<PlaySession>().SingleAsync(s => s.Id == session.Id);
         Assert.Equal("Overnight", savedSession.Name);
@@ -355,7 +362,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         }
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
-        var state = (await started.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        await fixture.Client.StartReadyGames(url);
+        var state = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         var original = state.CurrentMatches[0].Players.Select(p => p.PlayerId).ToArray();
         var waiting = state.WaitingQueue.Select(p => p.Id).ToArray();
         // The same teams actually play twice; previews do not create history.
@@ -368,7 +376,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             Assert.All(selected, id => Assert.Contains(state.CurrentMatches[0].EligiblePlayers, p => p.Id == id));
             using var next = await fixture.Client.PostAsJsonAsync($"{url}/matches/{current.Id}/next", new { playerIds = selected, overrideLineup = true });
             Assert.Equal(HttpStatusCode.OK, next.StatusCode);
-            state = (await next.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        await fixture.Client.StartReadyGames(url);
+            state = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
             Assert.Equal(selected, state.CurrentMatches[0].Players.Select(p => p.PlayerId));
         }
         var heldId = state.CurrentMatches[0].Id;
@@ -383,7 +392,8 @@ public sealed class PlaySessionsApiTests(PostgresCourtFixture fixture) : IClassF
             Assert.Equal(5, await db.Set<PlayMatch>().CountAsync(m => m.SessionId == session.Id));
         using var confirmed = await fixture.Client.PostAsJsonAsync($"{url}/matches/{heldId}/next", new { playerIds = proposal.Select(p => p.PlayerId), overrideLineup = false });
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
-        state = (await confirmed.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        await fixture.Client.StartReadyGames(url);
+        state = (await fixture.Client.GetFromJsonAsync<PlaySessionDetail>(url, Json))!;
         Assert.Equal(proposal.Select(p => p.PlayerId), Assert.Single(state.CurrentMatches).Players.Select(p => p.PlayerId));
         Assert.Equal(4, state.Players.Count(p => p.State == PlayPlayerState.Playing));
         Assert.Equal(waiting, state.WaitingQueue.Select(p => p.Id));

@@ -19,6 +19,8 @@ public sealed class PlayRotationTests
         var session = Session(courts);
         var players = Add(session, 14);
         session.Start(Now);
+
+        session.StartReadyGames();
         var matches = session.Matches.OrderBy(m => m.CourtNumber).ToArray();
         Assert.Equal(courts, matches.Length);
         for (var i = 0; i < courts; i++)
@@ -37,6 +39,8 @@ public sealed class PlayRotationTests
         var session = Session(2);
         var players = Add(session, 14);
         session.Start(Now);
+
+        session.StartReadyGames();
         var first = session.Matches.Single(m => m.CourtNumber == 1);
         var second = session.Matches.Single(m => m.CourtNumber == 2);
         session.FinishGame(second.Id, Now.AddMinutes(10));
@@ -48,6 +52,8 @@ public sealed class PlayRotationTests
         Assert.Equal(players.Skip(8).Select(p => p.Id), session.WaitingQueue.Select(p => p.Id));
         Assert.Equal(2, session.Matches.Count);
         session.StartNextGame(second.Id, session.NextLineup(second.Id).Select(p => p.Id).ToArray(), false, Now.AddMinutes(10));
+
+        session.StartReadyGames();
         Assert.False(second.IsCurrent);
         var replacement = session.Matches.Single(m => m.CourtNumber == 2 && m.Status == PlayMatchStatus.Active);
         Assert.Equal(players.Skip(8).Take(4).Select(p => p.Id).Order(), Participants(replacement).Order());
@@ -63,6 +69,8 @@ public sealed class PlayRotationTests
         var session = Session(2);
         var players = Add(session, 3);
         session.Start(Now);
+
+        session.StartReadyGames();
         Assert.Empty(session.Matches);
         Assert.Equal(3, session.WaitingQueue.Count);
         var late = session.AddGuest("Late guest", Now);
@@ -78,10 +86,13 @@ public sealed class PlayRotationTests
         var session = Session(1);
         var players = Add(session, 3);
         session.Start(Now);
+
+        session.StartReadyGames();
         session.Rest(players[0].Id, Now);
         var fourth = session.AddGuest("Fourth", Now);
         Assert.Empty(session.Matches);
         session.Rejoin(players[0].Id, Now);
+        session.StartReadyGames();
         var match = Assert.Single(session.Matches);
         Assert.Equal(players.Append(fourth).Select(p => p.Id).Order(), Participants(match).Order());
         Assert.Throws<PlayConflictException>(() => session.Rest(players[0].Id, Now));
@@ -94,11 +105,15 @@ public sealed class PlayRotationTests
         var session = Session(2);
         Add(session, 12);
         session.Start(Now);
+
+        session.StartReadyGames();
         for (var turn = 0; turn < 6; turn++)
         {
             var match = session.Matches.First(m => m.Status == PlayMatchStatus.Active);
             session.FinishGame(match.Id, Now);
             session.StartNextGame(match.Id, session.NextLineup(match.Id).Select(p => p.Id).ToArray(), false, Now);
+
+            session.StartReadyGames();
             var active = session.Matches.Where(m => m.Status == PlayMatchStatus.Active).ToArray();
             var ids = active.SelectMany(Participants).ToArray();
             Assert.Equal(2, active.Select(m => m.CourtNumber).Distinct().Count());

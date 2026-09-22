@@ -29,6 +29,7 @@ public sealed class PlayRotationApiVerificationTests(PostgresCourtFixture fixtur
             Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         }
         using var started = await fixture.Client.PostAsync($"{url}/start", null);
+        await fixture.Client.StartReadyGames(url);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
         return url;
     }
@@ -43,7 +44,7 @@ public sealed class PlayRotationApiVerificationTests(PostgresCourtFixture fixtur
         using var response = await fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/next",
             new StartNextPlayGame { PlayerIds = match.NextLineup.Select(p => p.PlayerId).ToArray() }, Json);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var canonical = (await response.Content.ReadFromJsonAsync<PlaySessionDetail>(Json))!;
+        var canonical = await fixture.Client.StartReadyGames(url);
         Assert.Equal(match.NextLineup.Select(p => (p.PlayerId, p.Team, p.Position)),
             canonical.CurrentMatches.Single(m => m.CourtNumber == match.CourtNumber).Players.Select(p => (p.PlayerId, p.Team, p.Position)));
     }

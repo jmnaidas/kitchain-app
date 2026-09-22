@@ -11,6 +11,8 @@ public sealed class PlayMatchHistoryTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 15), new(18, 0), new(21, 0), 2, null, Now, mode);
         for (var i = 0; i < 12; i++) session.AddGuest($"Player {i}", Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Court(PlaySession session, int court = 1) => session.Matches.Single(m => m.IsCurrent && m.CourtNumber == court);
@@ -80,6 +82,8 @@ public sealed class PlayMatchHistoryTests
         var firstBefore = Assert.Single((await Service(session).FindAsync("ABCDEF", default))!.MatchHistory);
         Assert.Null(firstBefore.Winner); // Finish override does not infer a winner.
         session.StartNextGame(first.Id, session.NextLineup(first.Id).Select(p => p.Id).ToArray(), false, session.UpdatedAt);
+
+        session.StartReadyGames();
         Assert.Empty(Court(session).Rallies);
         session.FinishGame(other.Id, Now.AddMinutes(12));
         var service = Service(session);

@@ -33,6 +33,7 @@ public sealed class PlayRotationPresetTests
         Assert.Throws<ArgumentException>(() => Edit(session, (PlayRotationMode)99));
         Assert.Equal(PlayRotationMode.SplitTeams, session.RotationMode);
         session.Start(Now);
+        session.StartReadyGames();
         Assert.Throws<PlayConflictException>(() => Edit(session, PlayRotationMode.FairRotation));
         session.End(Now);
         Assert.Throws<PlayConflictException>(() => Edit(session, PlayRotationMode.FairRotation));
@@ -48,6 +49,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(mode, 10);
         session.Start(Now);
+        session.StartReadyGames();
         var match = Court(session);
         var retainedTeam = mode == PlayRotationMode.WinnersStay ? winner : winner == PlayTeam.A ? PlayTeam.B : PlayTeam.A;
         var retained = match.Players.Where(p => p.Team == retainedTeam).Select(p => p.PlayerId).ToArray();
@@ -61,6 +63,7 @@ public sealed class PlayRotationPresetTests
         Assert.Equal(2, session.RotationPreview().Held);
         var history = Ids(match);
         session.StartNextGame(match.Id, next, false, Now);
+        session.StartReadyGames();
         Assert.All(rotated, id => Assert.Contains(session.WaitingQueue, p => p.Id == id));
         Assert.Equal(history, Ids(match));
         Assert.Equal(winner, match.Winner);
@@ -79,6 +82,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(PlayRotationMode.SplitTeams, count);
         session.Start(Now);
+        session.StartReadyGames();
         var match = Court(session);
         session.FinishGame(match.Id, Now, PlayTeam.B);
         var next = Next(session, match);
@@ -95,6 +99,7 @@ public sealed class PlayRotationPresetTests
             Assert.False(previous.Length == 2 && previous[0].Team == previous[1].Team);
         }
         session.StartNextGame(match.Id, next, false, Now);
+        session.StartReadyGames();
         Assert.Equal(next, Ids(Court(session)));
     }
 
@@ -107,6 +112,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(mode);
         session.Start(Now);
+        session.StartReadyGames();
         var match = Court(session);
         var waiting = session.WaitingQueue.Select(p => p.Id).ToArray();
         session.FinishGame(match.Id, Now);
@@ -125,6 +131,7 @@ public sealed class PlayRotationPresetTests
         session.EditDetails("Crew", new(2026, 9, 16), new(18, 0), new(2026, 9, 16), new(21, 0),
             1, null, PlaySessionMode.LiveScoring, Now);
         session.Start(Now);
+        session.StartReadyGames();
         var first = Court(session);
         var waiting = session.WaitingQueue.Select(p => p.Id).ToArray();
         session.CorrectScore(first.Id, 8, 2, PlayTeam.A, 1, Now);
@@ -132,6 +139,7 @@ public sealed class PlayRotationPresetTests
         Assert.Null(first.Winner);
         Assert.Equal(waiting.Order(), Next(session, first).Order());
         session.StartNextGame(first.Id, Next(session, first), false, Now);
+        session.StartReadyGames();
         var second = Court(session);
         session.CorrectScore(second.Id, 10, 8, PlayTeam.A, 1, Now);
         session.RecordRally(second.Id, PlayTeam.A, Now);
@@ -152,6 +160,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(mode);
         session.Start(Now);
+        session.StartReadyGames();
         var match = Court(session);
         var resting = session.WaitingQueue[0];
         var removed = session.WaitingQueue[1];
@@ -165,6 +174,7 @@ public sealed class PlayRotationPresetTests
         Assert.DoesNotContain(removed.Id, next);
         Assert.Equal(4, next.Distinct().Count());
         session.StartNextGame(match.Id, next, false, Now);
+        session.StartReadyGames();
     }
 
     [Theory]
@@ -175,6 +185,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(mode, 10, 2);
         session.Start(Now);
+        session.StartReadyGames();
         var first = Court(session);
         var second = Court(session, 2);
         session.FinishGame(first.Id, Now, PlayTeam.A);
@@ -183,10 +194,12 @@ public sealed class PlayRotationPresetTests
         Assert.Equal(1, session.RotationPreview().Court);
         var stale = Next(session, second);
         session.StartNextGame(first.Id, Next(session, first), false, Now.AddSeconds(1));
+        session.StartReadyGames();
         Assert.True(second.IsCurrent);
         Assert.All(Ids(second), id => Assert.Equal(PlayPlayerState.Playing, session.Players.Single(p => p.Id == id).State));
         Assert.Throws<PlayConflictException>(() => session.StartNextGame(second.Id, stale, true, Now.AddSeconds(1)));
         session.StartNextGame(second.Id, Next(session, second), false, Now.AddSeconds(1));
+        session.StartReadyGames();
         Assert.Equal(8, session.Matches.Where(m => m.IsCurrent).SelectMany(Ids).Distinct().Count());
     }
 
@@ -198,6 +211,7 @@ public sealed class PlayRotationPresetTests
     {
         var session = Session(mode, count);
         session.Start(Now);
+        session.StartReadyGames();
         if (count < 4)
         {
             Assert.Empty(session.Matches);
@@ -210,6 +224,7 @@ public sealed class PlayRotationPresetTests
         Assert.Equal(4, Next(session, match).Distinct().Count());
         var manual = Ids(match).Reverse().ToArray();
         session.StartNextGame(match.Id, manual, true, Now);
+        session.StartReadyGames();
         Assert.Equal(manual, Ids(Court(session)));
         session.End(Now);
         Assert.Throws<PlayConflictException>(() => session.FinishGame(Court(session).Id, Now));

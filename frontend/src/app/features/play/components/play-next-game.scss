@@ -53,8 +53,17 @@ button:disabled {
 [role='alert'] {
   color: #97361f;
 }
-@media (max-width: 400px) {
-  .lineup {
-    grid-template-columns: 1fr;
-  }
+
+.team {
+  min-width: 0;
+}
+select {
+  padding: 0.7rem 0.4rem;
+  font: inherit;
+  text-overflow: ellipsis;
+}
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
 }

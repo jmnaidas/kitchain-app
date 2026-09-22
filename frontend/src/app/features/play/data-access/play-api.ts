@@ -93,4 +93,27 @@ export class PlayApi {
   private url(code: string) {
     return `${this.base}/${encodeURIComponent(normalizeCode(code))}`;
   }
+  changeLineup(
+    code: string,
+    matchId: string,
+    position: number,
+    playerId: string,
+    expectedRevision: number,
+  ) {
+    return this.http.patch<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/lineup`,
+      { position, playerId, expectedRevision },
+    );
+  }
+  readyAction(
+    code: string,
+    matchId: string,
+    action: 'start' | 'lineup/reset',
+    expectedRevision: number,
+  ) {
+    return this.http.post<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/${action}`,
+      { expectedRevision },
+    );
+  }
 }

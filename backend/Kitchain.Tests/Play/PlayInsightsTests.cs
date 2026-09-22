@@ -11,6 +11,8 @@ public sealed class PlayInsightsTests
         var session = new PlaySession(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 15), new(18, 0), new(21, 0), 1, null, Now, mode);
         foreach (var name in new[] { "Zoe", "Alex", "Kim", "Bea", "Lee", "Sam", "Pat", "Dev" }) session.AddGuest(name, Now);
         session.Start(Now);
+
+        session.StartReadyGames();
         return session;
     }
     private static PlayMatch Current(PlaySession session) => session.Matches.Single(m => m.IsCurrent);
@@ -49,6 +51,8 @@ public sealed class PlayInsightsTests
             Assert.Equal(slot.Team == PlayTeam.B ? 1 : 0, player.Losses);
         }
         session.StartNextGame(first.Id, new[] { original[0], original[2], original[1], original[3] }, true, session.UpdatedAt);
+
+        session.StartReadyGames();
         var second = Current(session);
         session.FinishGame(second.Id, session.UpdatedAt.AddMinutes(10));
         var afterOverride = await Read(session);
@@ -63,6 +67,8 @@ public sealed class PlayInsightsTests
             Assert.Equal(3, p.DistinctOpponents);
         });
         session.StartNextGame(second.Id, waiting, true, session.UpdatedAt);
+
+        session.StartReadyGames();
         var third = Current(session);
         session.CorrectScore(third.Id, 8, 11, PlayTeam.B, 2, session.UpdatedAt.AddMinutes(10));
         session.End(session.UpdatedAt);
@@ -90,6 +96,8 @@ public sealed class PlayInsightsTests
         var players = Slots(first);
         session.FinishGame(first.Id, Now);
         session.StartNextGame(first.Id, players, true, Now);
+
+        session.StartReadyGames();
         session.FinishGame(Current(session).Id, Now);
         var insights = await Read(session);
         Assert.Equal(2, insights.CompletedGames);

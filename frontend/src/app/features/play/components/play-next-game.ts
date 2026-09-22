@@ -1,10 +1,18 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import {
   NextPlayGame,
   PlayMatch,
   PlayRotationMode,
   rotationLabel,
 } from '../data-access/play.models';
+
+export interface ReadyLineupAction {
+  matchId: string;
+  expectedRevision: number;
+  action: 'slot' | 'start' | 'reset';
+  position?: number;
+  playerId?: string;
+}
 
 @Component({
   selector: 'app-play-next-game',
@@ -15,53 +23,44 @@ import {
 export class PlayNextGame {
   readonly match = input.required<PlayMatch>();
   readonly rotationMode = input<PlayRotationMode>('FairRotation');
-  protected readonly rotationLabel = rotationLabel;
   readonly disabled = input(false);
   readonly startNext = output<NextPlayGame>();
-  protected readonly open = signal(false);
-  protected readonly editing = signal(false);
-  protected readonly selected = signal<string[]>([]);
-  protected readonly error = signal('');
-  protected readonly positions = [
-    'Team A player 1',
-    'Team A player 2',
-    'Team B player 1',
-    'Team B player 2',
-  ];
-
-  protected reset() {
-    this.selected.set(this.positions.map((_, i) => this.match().nextLineup[i]?.playerId ?? ''));
-    this.editing.set(false);
-    this.error.set('');
-  }
-  protected proceed() {
-    this.reset();
-    this.open.set(true);
-  }
-  protected select(index: number, event: Event) {
-    const value = (event.target as HTMLSelectElement).value;
-    this.selected.update((ids) => ids.map((id, i) => (i === index ? value : id)));
-  }
-  protected name(id: string) {
-    return (
-      this.match().eligiblePlayers.find((player) => player.id === id)?.displayName ??
-      'Player no longer eligible'
-    );
-  }
-  protected confirm() {
+  readonly readyAction = output<ReadyLineupAction>();
+  protected readonly rotationLabel = rotationLabel;
+  protected readonly slots = computed(() =>
+    [...this.match().players].sort((a, b) => a.position - b.position),
+  );
+  protected readonly lineupOptions = computed(() =>
+    [...this.match().players].sort((a, b) => a.playerId.localeCompare(b.playerId)),
+  );
+  protected readonly waiting = computed(() =>
+    this.match().eligiblePlayers.filter(
+      (p) => p.state === 'Waiting' && !this.match().players.some((slot) => slot.playerId === p.id),
+    ),
+  );
+  protected select(position: number, event: Event) {
     if (this.disabled()) return;
-    const ids = this.selected();
-    if (
-      ids.length !== 4 ||
-      new Set(ids).size !== 4 ||
-      ids.some((id) => !this.match().eligiblePlayers.some((player) => player.id === id))
-    ) {
-      this.error.set(
-        'Choose four distinct eligible players. Reset to the recommendation if the lineup has changed.',
-      );
-      return;
-    }
-    this.error.set('');
-    this.startNext.emit({ playerIds: [...ids], overrideLineup: this.editing() });
+    const control = event.target as HTMLSelectElement;
+    const playerId = control.value;
+    // Keep the canonical label visible until the server accepts the change.
+    control.value = this.slots().find((p) => p.position === position)?.playerId ?? '';
+    this.emit('slot', position, playerId);
+  }
+  protected emit(action: ReadyLineupAction['action'], position?: number, playerId?: string) {
+    if (this.disabled()) return;
+    this.readyAction.emit({
+      matchId: this.match().id,
+      expectedRevision: this.match().lineupRevision ?? 0,
+      action,
+      position,
+      playerId,
+    });
+  }
+  protected prepare() {
+    if (this.disabled()) return;
+    this.startNext.emit({
+      playerIds: this.match().nextLineup.map((p) => p.playerId),
+      overrideLineup: false,
+    });
   }
 }

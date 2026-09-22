@@ -1,6 +1,6 @@
 namespace Kitchain.Domain.Play;
 
-public enum PlayMatchStatus { Active, Completed }
+public enum PlayMatchStatus { Active, Completed, Ready }
 public enum PlayTeam { A, B }
 
 public sealed class PlayMatch
@@ -17,8 +17,7 @@ public sealed class PlayMatch
         Id = Guid.NewGuid();
         SessionId = sessionId;
         CourtNumber = courtNumber;
-        Status = PlayMatchStatus.Active;
-        StartedAt = now.ToUniversalTime();
+        Status = PlayMatchStatus.Ready;
         for (var i = 0; i < 4; i++)
             _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1, players[i].DisplayName));
     }
@@ -29,7 +28,9 @@ public sealed class PlayMatch
     public PlayMatchStatus Status { get; private set; }
     public bool IsCurrent { get; private set; } = true;
     public PlayTeam? Winner { get; private set; }
-    public DateTimeOffset StartedAt { get; private set; }
+    public DateTimeOffset? StartedAt { get; private set; }
+    public long LineupRevision { get; private set; }
+    public bool IsLineupOverridden { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
     public int TeamAScore { get; private set; }
     public int TeamBScore { get; private set; }
@@ -38,6 +39,33 @@ public sealed class PlayMatch
     public int CurrentServerNumber { get; private set; } = 2;
     public IReadOnlyCollection<PlayMatchPlayer> Players => _players.AsReadOnly();
     public IReadOnlyCollection<PlayRallyEvent> Rallies => _rallies.AsReadOnly();
+
+    internal void CheckReady(long expectedRevision)
+    {
+        if (!IsCurrent || Status != PlayMatchStatus.Ready || expectedRevision != LineupRevision)
+            throw new PlayConflictException("The lineup changed or the game already started. Refresh before continuing.");
+        if (LineupRevision == long.MaxValue) throw new PlayConflictException("This lineup cannot be edited further.");
+    }
+
+    internal void SetLineup(IReadOnlyList<PlaySessionPlayer> players, bool overridden)
+    {
+        CheckReady(LineupRevision);
+        if (players.Count != 4 || players.Select(p => p.Id).Distinct().Count() != 4 ||
+            players.Any(p => p.SessionId != SessionId || p.State != PlayPlayerState.Waiting || p.IsRemoved))
+            throw new ArgumentException("Choose four distinct eligible players.");
+        _players.Clear();
+        for (var i = 0; i < players.Count; i++)
+            _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1, players[i].DisplayName));
+        IsLineupOverridden = overridden;
+        LineupRevision++;
+    }
+
+    internal void Start(DateTimeOffset now)
+    {
+        CheckReady(LineupRevision);
+        Status = PlayMatchStatus.Active;
+        StartedAt = now.ToUniversalTime();
+    }
 
     internal bool RecordRally(PlayTeam winner, int targetScore, int winBy, DateTimeOffset now)
     {

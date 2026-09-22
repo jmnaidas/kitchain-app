@@ -19,7 +19,7 @@
                     ? 'Next Up'
                     : 'Waiting'
             }}
-            @if (player.state === 'Playing' && courts()[player.id]) {
+            @if (courts()[player.id]) {
               · Court {{ courts()[player.id] }}
             }
             @if (completedPlayers()[player.id]) {
@@ -30,14 +30,16 @@
             <app-play-draft-player
               [player]="player"
               [disabled]="disabled()"
-              [allowRemove]="player.state !== 'Playing'"
+              [allowRemove]="player.state !== 'Playing' && !courts()[player.id]"
               (renamePlayer)="renamePlayer.emit($event)"
               (removePlayer)="removePlayer.emit($event)"
             />
           }
         </div>
       </div>
-      @if (managed() && !readOnly() && !draft() && player.state !== 'Playing') {
+      @if (
+        managed() && !readOnly() && !draft() && player.state !== 'Playing' && !courts()[player.id]
+      ) {
         <button
           type="button"
           [disabled]="disabled()"

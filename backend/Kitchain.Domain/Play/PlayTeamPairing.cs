@@ -10,7 +10,7 @@ internal static class PlayTeamPairing
         IEnumerable<PlayMatch> history, Guid seed, PlayMatch? avoidPartnersFrom = null)
     {
         if (selected.Count != 4) return selected.ToArray();
-        var matches = history.Where(m => m.SessionId == sessionId)
+        var matches = history.Where(m => m.SessionId == sessionId && m.Status != PlayMatchStatus.Ready)
             .OrderByDescending(m => m.StartedAt).ThenByDescending(m => m.Id).ToArray();
         var recent = selected.ToDictionary(p => p.Id, p => matches.Where(m => m.Players.Any(slot => slot.PlayerId == p.Id))
             .Take(3).Select(m => m.Id).ToHashSet());

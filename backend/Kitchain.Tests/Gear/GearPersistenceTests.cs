@@ -32,8 +32,9 @@ public sealed class GearPersistenceTests(PostgresCourtFixture fixture) : IClassF
         await using var db = isolated.Fixture.CreateDbContext();
         var before = await TableCounts(db);
         var migrations = db.Database.GetMigrations().ToArray();
-        Assert.EndsWith("_AddGearFoundation", migrations[^1]);
-        await db.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+        var gearIndex = Array.FindIndex(migrations, m => m.EndsWith("_AddGearFoundation", StringComparison.Ordinal));
+        Assert.True(gearIndex > 0);
+        await db.GetService<IMigrator>().MigrateAsync(migrations[gearIndex - 1]);
         Assert.Equal(before, await TableCounts(db));
         await db.Database.MigrateAsync();
         Assert.Equal(before, await TableCounts(db));
