@@ -2410,6 +2410,51 @@ describe('Play experience', () => {
     expect(button('Start Game')).toBeTruthy();
     expect(element.querySelector('.rally-actions')).toBeNull();
   });
+  it('groups other Ready courts and sends both revisions for a cross-court swap', async () => {
+    const state = readyRoom();
+    state.numberOfCourts = 3;
+    const other = {
+      ...state.currentMatches[0],
+      id: 'other',
+      courtNumber: 2,
+      lineupRevision: 7,
+      players: state.currentMatches[0].players.map((p) => ({
+        ...p,
+        playerId: 'other-' + p.playerId,
+      })),
+    };
+    const third = {
+      ...other,
+      id: 'third',
+      courtNumber: 3,
+      players: other.players.map((p) => ({ ...p, playerId: 'third-' + p.playerId })),
+    };
+    state.currentMatches.push(other, third);
+    await openRoom(state);
+    click('Courts');
+    const select = element.querySelector<HTMLSelectElement>('app-play-next-game select')!;
+    const groups = Array.from(select.querySelectorAll('optgroup'));
+    expect(groups.map((g) => g.label)).toContain('Court 2 · select to swap courts');
+    expect(groups.map((g) => g.label)).toContain('Court 3 · select to swap courts');
+    expect(
+      Array.from(groups.find((g) => g.label.startsWith('Court 2'))!.children).map(
+        (o) => (o as HTMLOptionElement).value,
+      ),
+    ).toEqual(other.players.map((p) => p.playerId));
+    chooseSlot(1, 'other-c');
+    const request = http.expectOne(base + '/' + code + '/matches/scored-match/lineup');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({
+      position: 1,
+      playerId: 'other-c',
+      expectedRevision: 0,
+      otherMatchId: 'other',
+      otherExpectedRevision: 7,
+    });
+    request.flush(state);
+    await settle();
+  });
+
   it('excludes other-court and resting players and resets only the selected Ready court', async () => {
     const state = readyRoom();
     const other = {

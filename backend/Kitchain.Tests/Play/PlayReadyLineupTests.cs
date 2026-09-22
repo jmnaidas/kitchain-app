@@ -16,6 +16,39 @@ public sealed class PlayReadyLineupTests
     }
     private static Guid[] Ids(PlayMatch m) => m.Players.OrderBy(p => p.Position).Select(p => p.PlayerId).ToArray();
 
+    [Fact]
+    public void Cross_court_swap_preserves_slots_tickets_and_final_participation_and_reset_is_safe()
+    {
+        var s = Session(); var a = s.Matches.First(); var b = s.Matches.Last();
+        var first = Ids(a); var second = Ids(b);
+        var tickets = s.Players.ToDictionary(p => p.Id, p => (p.QueueOrder, p.WaitingSince));
+        s.ChangeLineupSlot(a.Id, 2, second[2], 0, Now, b.Id, 0);
+        Assert.Equal(new[] { first[0], second[2], first[2], first[3] }, Ids(a));
+        Assert.Equal(new[] { second[0], second[1], first[1], second[3] }, Ids(b));
+        Assert.All(s.Matches, m => { Assert.Equal(1, m.LineupRevision); Assert.True(m.IsLineupOverridden); });
+        Assert.Equal(8, s.Matches.SelectMany(Ids).Distinct().Count());
+        Assert.All(s.Players, p => { Assert.Equal(tickets[p.Id], (p.QueueOrder, p.WaitingSince)); Assert.Equal(0, p.AdjustedGamesStarted); });
+        s.StartGame(a.Id, 1, Now);
+        Assert.Equal(1, s.Players.Single(p => p.Id == second[2]).AdjustedGamesStarted);
+        Assert.Equal(0, s.Players.Single(p => p.Id == first[1]).AdjustedGamesStarted);
+        s.ResetRecommendation(b.Id, 1, Now);
+        Assert.Equal(8, s.Matches.SelectMany(Ids).Distinct().Count());
+    }
+
+    [Fact]
+    public void Cross_court_stale_or_started_target_rejects_without_changing_either_lineup()
+    {
+        var s = Session(); var a = s.Matches.First(); var b = s.Matches.Last();
+        var first = Ids(a); var second = Ids(b);
+        Assert.Throws<PlayConflictException>(() => s.ChangeLineupSlot(a.Id, 1, second[0], 0, Now, b.Id, 1));
+        Assert.Throws<PlayConflictException>(() => s.ChangeLineupSlot(a.Id, 1, second[0], 1, Now, b.Id, 0));
+        Assert.Equal(first, Ids(a)); Assert.Equal(second, Ids(b));
+        Assert.All(s.Matches, m => Assert.Equal(0, m.LineupRevision));
+        s.StartGame(b.Id, 0, Now);
+        Assert.Throws<PlayConflictException>(() => s.ChangeLineupSlot(a.Id, 1, second[0], 0, Now, b.Id, 0));
+        Assert.Equal(first, Ids(a)); Assert.Equal(second, Ids(b));
+    }
+
     [Theory]
     [InlineData(PlaySessionMode.LiveScoring)]
     [InlineData(PlaySessionMode.QueueOnly)]

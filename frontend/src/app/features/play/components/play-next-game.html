@@ -47,6 +47,13 @@
                       </option>
                     }
                   </optgroup>
+                  @for (court of otherReadyCourts(); track court.id) {
+                    <optgroup [label]="'Court ' + court.courtNumber + ' · select to swap courts'">
+                      @for (player of court.players; track player.playerId) {
+                        <option [value]="player.playerId">{{ player.displayName }}</option>
+                      }
+                    </optgroup>
+                  }
                   <optgroup label="Available / Waiting">
                     @for (player of waiting(); track player.id) {
                       <option [value]="player.id">{{ player.displayName }}</option>
@@ -60,7 +67,8 @@
       }
     </div>
     <p class="help">
-      Tap a name to swap or replace. Players on other courts and sitting out are unavailable.
+      Tap a name to swap or replace. Players on Ready courts can swap courts. Playing and
+      sitting-out players are unavailable.
     </p>
     @if (match().isLineupOverridden) {
       <p class="help">Host-adjusted lineup</p>

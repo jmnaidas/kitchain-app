@@ -99,10 +99,17 @@ export class PlayApi {
     position: number,
     playerId: string,
     expectedRevision: number,
+    otherMatchId?: string,
+    otherExpectedRevision?: number,
   ) {
     return this.http.patch<PlaySession>(
       `${this.url(code)}/matches/${encodeURIComponent(matchId)}/lineup`,
-      { position, playerId, expectedRevision },
+      {
+        position,
+        playerId,
+        expectedRevision,
+        ...(otherMatchId ? { otherMatchId, otherExpectedRevision } : {}),
+      },
     );
   }
   readyAction(

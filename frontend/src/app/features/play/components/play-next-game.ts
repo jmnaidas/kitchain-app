@@ -12,6 +12,8 @@ export interface ReadyLineupAction {
   action: 'slot' | 'start' | 'reset';
   position?: number;
   playerId?: string;
+  otherMatchId?: string;
+  otherExpectedRevision?: number;
 }
 
 @Component({
@@ -22,6 +24,12 @@ export interface ReadyLineupAction {
 })
 export class PlayNextGame {
   readonly match = input.required<PlayMatch>();
+  readonly currentMatches = input<PlayMatch[]>([]);
+  protected readonly otherReadyCourts = computed(() =>
+    this.currentMatches()
+      .filter((m) => m.id !== this.match().id && m.status === 'Ready')
+      .sort((a, b) => a.courtNumber - b.courtNumber),
+  );
   readonly rotationMode = input<PlayRotationMode>('FairRotation');
   readonly disabled = input(false);
   readonly startNext = output<NextPlayGame>();
@@ -48,7 +56,14 @@ export class PlayNextGame {
   }
   protected emit(action: ReadyLineupAction['action'], position?: number, playerId?: string) {
     if (this.disabled()) return;
+    const other =
+      action === 'slot'
+        ? this.otherReadyCourts().find((m) => m.players.some((p) => p.playerId === playerId))
+        : undefined;
     this.readyAction.emit({
+      ...(other
+        ? { otherMatchId: other.id, otherExpectedRevision: other.lineupRevision ?? 0 }
+        : {}),
       matchId: this.match().id,
       expectedRevision: this.match().lineupRevision ?? 0,
       action,

@@ -26,7 +26,8 @@ public sealed record ReadyPlayGame([Required, Range(0, long.MaxValue)] long? Exp
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ChangePlayLineupSlot([Required, Range(1, 4)] int? Position,
-    [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+    [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision,
+    Guid? OtherMatchId = null, [Range(0, long.MaxValue)] long? OtherExpectedRevision = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record StartNextPlayGame
@@ -174,7 +175,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> ChangeLineupSlotAsync(string code, Guid matchId, ChangePlayLineupSlot input, CancellationToken ct) =>
         UpdateAsync(code, s => s.ChangeLineupSlot(matchId, input.Position ?? throw new ArgumentException("Position is required."),
             input.PlayerId ?? throw new ArgumentException("Player is required."),
-            input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
+            input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s), input.OtherMatchId, input.OtherExpectedRevision), ct);
 
     public Task<PlaySessionDetail?> FinishGameAsync(string code, Guid matchId, CancellationToken cancellationToken, PlayTeam? winner = null) =>
         UpdateAsync(code, s => s.FinishGame(matchId, Now(s), winner), cancellationToken);

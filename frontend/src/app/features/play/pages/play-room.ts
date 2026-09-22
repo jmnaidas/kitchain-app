@@ -386,6 +386,8 @@ export class PlayRoom {
             intent.position!,
             intent.playerId!,
             intent.expectedRevision,
+            intent.otherMatchId,
+            intent.otherExpectedRevision,
           )
         : this.api.readyAction(
             this.code,

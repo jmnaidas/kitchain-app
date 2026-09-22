@@ -79,6 +79,35 @@ public sealed class PlayReadyApiTests(PostgresCourtFixture fixture) : IClassFixt
     }
 
     [PostgresFact]
+    public async Task Cross_court_swap_persists_both_slots_and_rejects_stale_or_started_target()
+    {
+        var (url, state) = await Create();
+        var a = state.CurrentMatches[0]; var b = state.CurrentMatches[1];
+        var first = a.Players.OrderBy(p => p.Position).ToArray();
+        var second = b.Players.OrderBy(p => p.Position).ToArray();
+        async Task<HttpResponseMessage> Cross(long revision) => await fixture.Client.PatchAsJsonAsync(
+            $"{url}/matches/{a.Id}/lineup", new { position = 2, playerId = second[2].PlayerId,
+                expectedRevision = a.LineupRevision, otherMatchId = b.Id, otherExpectedRevision = revision });
+        Assert.Equal(HttpStatusCode.Conflict, (await Cross(99)).StatusCode);
+        Assert.Equal(JsonSerializer.Serialize(state, Json), JsonSerializer.Serialize(await Read(url), Json));
+        Assert.Equal(HttpStatusCode.OK, (await Cross(0)).StatusCode);
+        var saved = await Read(url);
+        var changedA = saved.CurrentMatches.Single(m => m.Id == a.Id);
+        var changedB = saved.CurrentMatches.Single(m => m.Id == b.Id);
+        Assert.Equal(second[2].PlayerId, changedA.Players.Single(p => p.Position == 2).PlayerId);
+        Assert.Equal(first[1].PlayerId, changedB.Players.Single(p => p.Position == 3).PlayerId);
+        Assert.All(saved.CurrentMatches, m => { Assert.Equal(1, m.LineupRevision); Assert.True(m.IsLineupOverridden); Assert.Equal(4, m.Players.Select(p => p.PlayerId).Distinct().Count()); });
+        Assert.Equal(8, saved.CurrentMatches.SelectMany(m => m.Players).Select(p => p.PlayerId).Distinct().Count());
+        Assert.Equal(HttpStatusCode.Conflict, (await Cross(0)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Start(url, changedB)).StatusCode);
+        var before = await Read(url);
+        var rejected = await fixture.Client.PatchAsJsonAsync($"{url}/matches/{a.Id}/lineup",
+            new { position = 1, playerId = first[1].PlayerId, expectedRevision = 1, otherMatchId = b.Id, otherExpectedRevision = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.Equal(JsonSerializer.Serialize(before, Json), JsonSerializer.Serialize(await Read(url), Json));
+    }
+
+    [PostgresFact]
     public async Task Invalid_edits_leave_slots_queue_revision_and_fairness_unchanged()
     {
         var (url, state) = await Create(); var match = state.CurrentMatches[0];

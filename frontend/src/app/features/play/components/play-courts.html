@@ -37,6 +37,7 @@
         @if (match.status === 'Ready' && session().status === 'Active') {
           <app-play-next-game
             [match]="match"
+            [currentMatches]="session().currentMatches"
             [rotationMode]="session().rotationMode"
             [disabled]="disabled()"
             (readyAction)="readyAction.emit($event)"

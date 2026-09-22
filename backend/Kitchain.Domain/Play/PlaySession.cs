@@ -214,12 +214,33 @@ public sealed class PlaySession
         return Recommend(EligibleReadyPlayers(matchId), previous?.Id ?? Id);
     }
 
-    public void ChangeLineupSlot(Guid matchId, int position, Guid playerId, long expectedRevision, DateTimeOffset now)
+    public void ChangeLineupSlot(Guid matchId, int position, Guid playerId, long expectedRevision, DateTimeOffset now, Guid? otherMatchId = null, long? otherExpectedRevision = null)
     {
         EnsureOpen(now);
         var match = ReadyMatch(matchId);
         match.CheckReady(expectedRevision);
         if (position is < 1 or > 4) throw new ArgumentException("Choose a position from 1 to 4.", nameof(position));
+        var assigned = _matches.SingleOrDefault(m => m.IsCurrent && m.Id != matchId &&
+            m.Players.Any(p => p.PlayerId == playerId));
+        if (assigned is not null || otherMatchId is not null)
+        {
+            if (assigned is null || assigned.Id != otherMatchId || otherExpectedRevision is null)
+                throw new PlayConflictException("The other lineup changed. Refresh before swapping courts.");
+            assigned.CheckReady(otherExpectedRevision.Value);
+            var first = match.Players.OrderBy(p => p.Position).Select(p => FindPlayer(p.PlayerId)).ToArray();
+            var second = assigned.Players.OrderBy(p => p.Position).Select(p => FindPlayer(p.PlayerId)).ToArray();
+            if (first.Length != 4 || second.Length != 4 ||
+                first.Concat(second).Select(p => p.Id).Distinct().Count() != 8 ||
+                first.Concat(second).Any(p => p.IsRemoved || p.State != PlayPlayerState.Waiting))
+                throw new PlayConflictException("Both courts require four eligible proposed players.");
+            var target = Array.FindIndex(second, p => p.Id == playerId);
+            (first[position - 1], second[target]) = (second[target], first[position - 1]);
+            // Validate both revisions and lineups before changing either; the store locks this session.
+            match.SetLineup(first, true);
+            assigned.SetLineup(second, true);
+            UpdatedAt = now.ToUniversalTime();
+            return;
+        }
         var eligible = EligibleReadyPlayers(matchId).ToDictionary(p => p.Id);
         if (!eligible.ContainsKey(playerId)) throw new PlayConflictException("That player is unavailable or assigned to another court.");
         var ids = match.Players.OrderBy(p => p.Position).Select(p => p.PlayerId).ToArray();
