@@ -134,6 +134,24 @@ public sealed class PlayLiveTests
         Assert.Equal(4, notifier.Codes.Count);
     }
 
+    [Fact]
+    public async Task Planner_edits_and_finalization_notify_after_save_and_stale_intents_do_not()
+    {
+        var store = new Store();
+        store.Session.Start(store.Session.UpdatedAt);
+        store.Session.StartReadyGames();
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF")),
+            NullLogger<PlaySessionsController>.Instance, notifier);
+        var court = store.Session.NextRound().Courts.Single();
+        await controller.EditNextRound("ABCDEF", new EditPlayNextRound(court.MatchId, 1, court.PlayerIds[2], store.Session.NextRoundRevision), default);
+        var revision = store.Session.NextRoundRevision;
+        await controller.FinalizeNextRound("ABCDEF", new ReadyPlayGame(revision), default);
+        await controller.ResetNextRound("ABCDEF", new ReadyPlayGame(revision), default);
+        Assert.Equal(2, notifier.Codes.Count);
+        Assert.True(store.Session.NextRound().Finalized);
+    }
+
     private sealed class Store : IPlaySessionStore
     {
         public PlaySession Session { get; } = new(Guid.NewGuid(), "ABCDEF", "Crew", new(2026, 9, 10), new(18, 0), new(21, 0), 1, null, DateTimeOffset.UtcNow, PlaySessionMode.LiveScoring);

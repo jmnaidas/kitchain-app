@@ -116,7 +116,21 @@ export interface PlayPlayer {
   queueOrder: number | null;
 }
 
+export interface PlayNextRound {
+  revision: number;
+  finalized: boolean;
+  courts: { matchId: string; courtNumber: number; players: PlayMatch['players'] }[];
+  eligiblePlayers: PlayPlayer[];
+}
+export interface PlayPlannerAction {
+  action: 'edit' | 'finalize' | 'reset';
+  expectedRevision: number;
+  matchId?: string;
+  position?: number;
+  playerId?: string;
+}
 export interface PlaySession {
+  nextRound?: PlayNextRound;
   queue: {
     nextUp: PlayPlayer[];
     waiting: PlayPlayer[];

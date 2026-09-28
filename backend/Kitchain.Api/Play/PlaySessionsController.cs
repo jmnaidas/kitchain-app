@@ -111,6 +111,19 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> StartGame(string code, Guid matchId, ReadyPlayGame input, CancellationToken ct) =>
         SessionResult(() => sessions.StartGameAsync(code, matchId, input, ct));
 
+    [HttpPatch("{code}/next-round")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> EditNextRound(string code, EditPlayNextRound input, CancellationToken ct) =>
+        SessionResult(() => sessions.EditNextRoundAsync(code, input, ct));
+
+    [HttpPost("{code}/next-round/finalize")]
+    public Task<ActionResult<PlaySessionDetail>> FinalizeNextRound(string code, ReadyPlayGame input, CancellationToken ct) =>
+        SessionResult(() => sessions.FinalizeNextRoundAsync(code, input, ct));
+
+    [HttpPost("{code}/next-round/reset")]
+    public Task<ActionResult<PlaySessionDetail>> ResetNextRound(string code, ReadyPlayGame input, CancellationToken ct) =>
+        SessionResult(() => sessions.ResetNextRoundAsync(code, input, ct));
+
     private Task<ActionResult<PlaySessionDetail>> SessionResult(Func<Task<PlaySessionDetail?>> operation) =>
         Execute<PlaySessionDetail>(async () =>
         {

@@ -70,6 +70,13 @@ public sealed record CorrectPlayScore
     [Required, Range(1, 2)] public int? CurrentServerNumber { get; init; }
 }
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record EditPlayNextRound([Required] Guid? MatchId, [Required, Range(1, 4)] int? Position,
+    [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+public sealed record PlayPlannedCourtDetail(Guid MatchId, int CourtNumber, IReadOnlyList<PlayMatchPlayerDetail> Players);
+public sealed record PlayNextRoundDetail(long Revision, bool Finalized, IReadOnlyList<PlayPlannedCourtDetail> Courts,
+    IReadOnlyList<PlayPlayerDetail> EligiblePlayers);
+
 public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayName, PlayPlayerIdentityType IdentityType,
     PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder);
 
@@ -88,7 +95,7 @@ public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, Da
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<PlayPlayerDetail> Players,
     IReadOnlyList<PlayPlayerDetail> WaitingQueue, IReadOnlyList<PlayMatchDetail> ActiveMatches,
     PlaySessionMode Mode, IReadOnlyList<PlayMatchDetail> CurrentMatches, DateOnly EndDate,
-    IReadOnlyList<PlayMatchSummary> MatchHistory, PlayInsights Insights, PlayQueueDetail Queue);
+    IReadOnlyList<PlayMatchSummary> MatchHistory, PlayInsights Insights, PlayQueueDetail Queue, PlayNextRoundDetail? NextRound = null);
 
 public interface IPlayJoinCodeGenerator
 {
@@ -195,6 +202,18 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
             input.ServingTeam ?? throw new ArgumentException("Serving team is required.", "servingTeam"),
             input.CurrentServerNumber ?? throw new ArgumentException("Server number is required.", "currentServerNumber"), Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> EditNextRoundAsync(string code, EditPlayNextRound input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.EditNextRound(input.MatchId ?? throw new ArgumentException("Match is required."),
+            input.Position ?? throw new ArgumentException("Position is required."),
+            input.PlayerId ?? throw new ArgumentException("Player is required."),
+            input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+
+    public Task<PlaySessionDetail?> FinalizeNextRoundAsync(string code, ReadyPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.FinalizeNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+
+    public Task<PlaySessionDetail?> ResetNextRoundAsync(string code, ReadyPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.ResetNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+
     private async Task<PlaySessionDetail?> UpdateAsync(string code, Action<PlaySession> update, CancellationToken cancellationToken)
     {
         var session = await store.UpdateAsync(PlaySession.NormalizeCode(code), update, cancellationToken);
@@ -240,6 +259,13 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
                 scoring ? Rallies(m) : [])).ToArray();
         var current = session.Matches.Where(m => m.IsCurrent).OrderBy(m => m.CourtNumber).Select(Match).ToArray();
         var preview = session.RotationPreview();
+        var plan = session.NextRound();
+        var future = session.FutureEligiblePlayers().ToDictionary(p => p.Id);
+        var nextRound = new PlayNextRoundDetail(session.NextRoundRevision, plan.Finalized,
+            plan.Courts.Select(c => new PlayPlannedCourtDetail(c.MatchId, c.CourtNumber,
+                c.PlayerIds.Select((id, i) => new PlayMatchPlayerDetail(id, future[id].DisplayName,
+                    i < 2 ? PlayTeam.A : PlayTeam.B, i + 1)).ToArray())).ToArray(),
+            future.Values.Select(Player).ToArray());
         return new(session.Id, session.JoinCode, session.Name, session.SessionDate, session.StartTime, session.EndTime,
             session.NumberOfCourts, session.MaximumPlayers, session.Status, session.RotationMode, session.ScoringMode,
             session.GameTo, session.WinBy, session.CreatedAt, session.UpdatedAt,
@@ -247,6 +273,6 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
             session.WaitingQueue.Select(Player).ToArray(), current.Where(m => m.Status == PlayMatchStatus.Active).ToArray(),
             session.Mode, current, session.EndDate, history, PlayInsights.From(session, history),
             new(preview.Next.Select(Player).ToArray(), preview.Waiting.Select(Player).ToArray(),
-                preview.Needed, preview.Held, preview.Court));
+                preview.Needed, preview.Held, preview.Court), nextRound);
     }
 }

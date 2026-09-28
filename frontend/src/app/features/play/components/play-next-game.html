@@ -6,7 +6,13 @@
   >
     Proceed to next game
   </button>
-  <p class="help">Review the next Ready lineup before starting play.</p>
+  <p class="help">
+    {{
+      match().nextLineup.length === 4
+        ? 'Review the next Ready lineup before starting play.'
+        : 'Waiting for eligible players or the other courts in your finalized next round to finish.'
+    }}
+  </p>
 } @else if (match().status === 'Ready') {
   <section
     [attr.aria-label]="'Ready lineup on Court ' + match().courtNumber"

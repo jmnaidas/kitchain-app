@@ -1751,6 +1751,109 @@ describe('Play experience', () => {
       ],
     };
   }
+
+  function plannerRoom(): PlaySession {
+    const state = scoredRoom();
+    const futurePlayers = Array.from({ length: 9 }, (_, i) =>
+      player('future-' + i, 'Future ' + i, i + 1),
+    );
+    const slots = (offset: number) =>
+      futurePlayers.slice(offset, offset + 4).map((p, i) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        team: (i < 2 ? 'A' : 'B') as 'A' | 'B',
+        position: i + 1,
+      }));
+    state.players.push(...futurePlayers);
+    state.nextRound = {
+      revision: 4,
+      finalized: false,
+      courts: [
+        { matchId: 'scored-match', courtNumber: 1, players: slots(0) },
+        { matchId: 'second-match', courtNumber: 2, players: slots(4) },
+      ],
+      eligiblePlayers: [...futurePlayers, ...state.players.filter((p) => p.state === 'Playing')],
+    };
+    state.queue.nextUp = futurePlayers.slice(0, 8);
+    state.queue.waiting = [futurePlayers[8]];
+    return state;
+  }
+
+  it('plans both future courts with direct cross-court swaps and eight highlighted players', async () => {
+    const state = plannerRoom();
+    await openRoom(state);
+    click('Queue ' + state.waitingQueue.length);
+    expect(element.querySelectorAll('app-play-round-planner select').length).toBe(8);
+    expect(element.querySelectorAll('ol.featured li').length).toBe(8);
+    const select = element.querySelector<HTMLSelectElement>('app-play-round-planner select')!;
+    expect(Array.from(select.querySelectorAll('optgroup')).map((g) => g.label)).toContain(
+      'COURT 2 · SELECT TO SWAP COURTS',
+    );
+    expect(Array.from(select.options).some((o) => o.textContent?.includes('playing now'))).toBe(
+      true,
+    );
+    select.value = 'future-5';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    const edit = http.expectOne(base + '/' + code + '/next-round');
+    expect(edit.request.method).toBe('PATCH');
+    expect(edit.request.body).toEqual({
+      matchId: 'scored-match',
+      position: 1,
+      playerId: 'future-5',
+      expectedRevision: 4,
+    });
+    expect(select.disabled).toBe(true);
+    const changed = structuredClone(state);
+    const a = changed.nextRound!.courts[0].players[0];
+    const b = changed.nextRound!.courts[1].players[1];
+    changed.nextRound!.courts[0].players[0] = { ...b, team: 'A', position: 1 };
+    changed.nextRound!.courts[1].players[1] = { ...a, team: 'A', position: 2 };
+    changed.nextRound!.revision = 5;
+    edit.flush(changed);
+    await settle();
+    expect(element.querySelector<HTMLSelectElement>('app-play-round-planner select')!.value).toBe(
+      'future-5',
+    );
+    click('Finalize Next Round');
+    const finalize = http.expectOne(base + '/' + code + '/next-round/finalize');
+    expect(finalize.request.body).toEqual({ expectedRevision: 5 });
+    changed.nextRound!.finalized = true;
+    changed.nextRound!.revision = 6;
+    finalize.flush(changed);
+    await settle();
+    expect(element.textContent).toContain('Finalized · saved for the next games');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http.expectOne(base + '/' + code).flush(changed);
+    await settle();
+    expect(element.textContent).toContain('Finalized · saved for the next games');
+    expect(element.querySelectorAll('app-play-round-planner select').length).toBe(8);
+  });
+
+  it('refetches a stale planner edit and hides planner mutations in an ended session', async () => {
+    const state = plannerRoom();
+    await openRoom(state);
+    click('Queue ' + state.waitingQueue.length);
+    const select = element.querySelector<HTMLSelectElement>('app-play-round-planner select')!;
+    select.value = 'future-8';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    http
+      .expectOne(base + '/' + code + '/next-round')
+      .flush({ title: 'The next round changed.' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+    state.nextRound!.revision = 9;
+    state.nextRound!.finalized = true;
+    http.expectOne(base + '/' + code).flush(state);
+    await settle();
+    expect(element.textContent).toContain('Finalized · saved for the next games');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http.expectOne(base + '/' + code).flush({ ...state, status: 'Ended' });
+    await settle();
+    expect(element.querySelector('app-play-round-planner')).toBeNull();
+  });
   function readyRoom(source: PlaySession = scoredRoom()): PlaySession {
     const players = source.players.map((p) => ({
       ...p,

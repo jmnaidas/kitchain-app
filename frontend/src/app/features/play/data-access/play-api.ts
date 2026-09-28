@@ -93,6 +93,17 @@ export class PlayApi {
   private url(code: string) {
     return `${this.base}/${encodeURIComponent(normalizeCode(code))}`;
   }
+  editNextRound(
+    code: string,
+    input: { expectedRevision: number; matchId?: string; position?: number; playerId?: string },
+  ) {
+    return this.http.patch<PlaySession>(this.url(code) + '/next-round', input);
+  }
+  nextRoundAction(code: string, action: 'finalize' | 'reset', expectedRevision: number) {
+    return this.http.post<PlaySession>(this.url(code) + '/next-round/' + action, {
+      expectedRevision,
+    });
+  }
   changeLineup(
     code: string,
     matchId: string,

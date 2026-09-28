@@ -6,7 +6,7 @@ public enum PlayScoringMode { Traditional }
 public enum PlaySessionMode { QueueOnly, LiveScoring }
 
 /// <summary>A session owns its participants and fairness state and chronological waiting-list tickets.</summary>
-public sealed class PlaySession
+public sealed partial class PlaySession
 {
     public const string JoinCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     public const int JoinCodeLength = 6;
@@ -74,8 +74,8 @@ public sealed class PlaySession
         player.EnterScheduling(Status == PlaySessionStatus.Active ? EntryBaseline() : 0);
         _players.Add(player);
         NextQueueOrder = player.QueueOrder!.Value;
-        UpdatedAt = now.ToUniversalTime();
         FillFreeCourts(now);
+        Touch(now);
         return player;
     }
 
@@ -85,7 +85,7 @@ public sealed class PlaySession
         EnsureActivePlayers();
         EnsureNotReserved(playerId);
         FindPlayer(playerId).Rest(now);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void RenameGuest(Guid playerId, string displayName, DateTimeOffset now)
@@ -100,7 +100,7 @@ public sealed class PlaySession
         foreach (var slot in _matches.Where(m => m.Status is PlayMatchStatus.Active or PlayMatchStatus.Ready)
             .SelectMany(m => m.Players).Where(p => p.PlayerId == playerId))
             slot.Rename(player.DisplayName);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void RemoveGuest(Guid playerId, DateTimeOffset now)
@@ -110,7 +110,7 @@ public sealed class PlaySession
         var player = FindPlayer(playerId);
         player.Remove(now);
         if (!_matches.Any(m => m.Players.Any(p => p.PlayerId == playerId))) _players.Remove(player);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void Rejoin(Guid playerId, DateTimeOffset now)
@@ -123,8 +123,8 @@ public sealed class PlaySession
         player.Rejoin(ticket, now);
         player.EnterScheduling(baseline);
         NextQueueOrder = ticket;
-        UpdatedAt = now.ToUniversalTime();
         FillFreeCourts(now);
+        Touch(now);
     }
 
     public void Start(DateTimeOffset now)
@@ -132,8 +132,8 @@ public sealed class PlaySession
         if (Status != PlaySessionStatus.Draft) throw new PlayConflictException("Only a Draft session can be started.");
         EnsureTimestamp(now);
         Status = PlaySessionStatus.Active;
-        UpdatedAt = now.ToUniversalTime();
         FillFreeCourts(now);
+        Touch(now);
     }
 
     public void FinishGame(Guid matchId, DateTimeOffset now, PlayTeam? winner = null)
@@ -147,13 +147,17 @@ public sealed class PlaySession
         if (winner.HasValue && Mode != PlaySessionMode.QueueOnly)
             throw new PlayConflictException("Only Queue Only games can record a result when finishing manually.");
         match.Complete(now, winner);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public IReadOnlyList<PlaySessionPlayer> NextLineup(Guid matchId)
     {
         if (!_matches.Any(m => m.Id == matchId && m.IsCurrent && m.Status == PlayMatchStatus.Completed))
             throw new PlayConflictException("This court is no longer awaiting a next game.");
+        var plan = NextRound();
+        var planned = plan.Finalized ? plan.Courts.SingleOrDefault(c => c.MatchId == matchId) : null;
+        if (planned is not null)
+            return PlanDependencies(plan, matchId).Length == 0 ? [] : planned.PlayerIds.Select(FindPlayer).ToArray();
         return Recommend(EligibleNextPlayers(matchId), matchId);
     }
 
@@ -176,6 +180,12 @@ public sealed class PlaySession
         if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can start a next game.");
         var match = _matches.SingleOrDefault(m => m.Id == matchId && m.IsCurrent && m.Status == PlayMatchStatus.Completed)
             ?? throw new PlayConflictException("This court is no longer awaiting a next game.");
+        var plan = NextRound();
+        if (plan.Finalized && plan.Courts.Any(c => c.MatchId == matchId))
+        {
+            PromotePlan(plan, matchId, playerIds, now);
+            return;
+        }
         if (playerIds.Count != 4 || playerIds.Distinct().Count() != 4)
             throw new ArgumentException("Choose exactly four distinct eligible players.", nameof(playerIds));
         var eligible = EligibleNextPlayers(matchId).ToDictionary(p => p.Id);
@@ -196,7 +206,7 @@ public sealed class PlaySession
         if (overrideLineup) next.SetLineup(selected, true);
         match.ReleaseCourt();
         _matches.Add(next);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public IReadOnlyList<PlaySessionPlayer> EligibleReadyPlayers(Guid matchId)
@@ -238,7 +248,7 @@ public sealed class PlaySession
             // Validate both revisions and lineups before changing either; the store locks this session.
             match.SetLineup(first, true);
             assigned.SetLineup(second, true);
-            UpdatedAt = now.ToUniversalTime();
+            Touch(now);
             return;
         }
         var eligible = EligibleReadyPlayers(matchId).ToDictionary(p => p.Id);
@@ -249,7 +259,7 @@ public sealed class PlaySession
         if (other >= 0) ids[other] = ids[position - 1];
         ids[position - 1] = playerId;
         match.SetLineup(ids.Select(id => eligible[id]).ToArray(), true);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void ResetRecommendation(Guid matchId, long expectedRevision, DateTimeOffset now)
@@ -258,7 +268,7 @@ public sealed class PlaySession
         var match = ReadyMatch(matchId);
         match.CheckReady(expectedRevision);
         match.SetLineup(ReadyRecommendation(matchId), false);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void StartGame(Guid matchId, long expectedRevision, DateTimeOffset now)
@@ -275,7 +285,7 @@ public sealed class PlaySession
         match.Start(now);
         foreach (var id in ids) FindPlayer(id).Play(now);
         RecordOpportunity(eligible, ids);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     private PlayMatch ReadyMatch(Guid id)
@@ -295,7 +305,7 @@ public sealed class PlaySession
     {
         var match = ScoringMatch(matchId, now);
         var won = match.RecordRally(winner, GameTo, WinBy, now);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
         if (won) match.Complete(now, winner);
     }
 
@@ -310,7 +320,7 @@ public sealed class PlaySession
         var match = _matches.SingleOrDefault(m => m.Id == matchId && m.IsCurrent)
             ?? throw new PlayConflictException("This game is no longer current. Refresh the session.");
         match.EditCallOut(rallyId, callOut, expectedCallOut);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     public void CorrectScore(Guid matchId, int teamAScore, int teamBScore, PlayTeam servingTeam,
@@ -320,7 +330,7 @@ public sealed class PlaySession
         match.CorrectScore(teamAScore, teamBScore, servingTeam, currentServerNumber);
         if (teamAScore >= GameTo && teamAScore - teamBScore >= WinBy) match.Complete(now, PlayTeam.A);
         else if (teamBScore >= GameTo && teamBScore - teamAScore >= WinBy) match.Complete(now, PlayTeam.B);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     private PlayMatch ScoringMatch(Guid matchId, DateTimeOffset now)
@@ -339,6 +349,16 @@ public sealed class PlaySession
     public (IReadOnlyList<PlaySessionPlayer> Next, IReadOnlyList<PlaySessionPlayer> Waiting,
         int Needed, int Held, int? Court) RotationPreview()
     {
+        if (Status == PlaySessionStatus.Active)
+        {
+            var planned = NextRound().Courts.SelectMany(c => c.PlayerIds);
+            var readyIds = _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready)
+                .SelectMany(m => m.Players).Select(p => p.PlayerId);
+            var all = planned.Concat(readyIds).Distinct().Select(FindPlayer).ToArray();
+            var plannedIds = all.Select(p => p.Id).ToHashSet();
+            return (all, WaitingQueue.Where(p => !plannedIds.Contains(p.Id)).ToArray(), 0,
+                all.Count(p => p.State == PlayPlayerState.Playing), null);
+        }
         var completed = Status == PlaySessionStatus.Active
             ? _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Completed)
                 .OrderBy(m => m.CompletedAt).ThenBy(m => m.CourtNumber).FirstOrDefault() : null;
@@ -402,7 +422,7 @@ public sealed class PlaySession
         EnsureOpen(now);
         if (Status != PlaySessionStatus.Draft) throw new PlayConflictException("Only a Draft session can edit its details.");
         SetDetails(name, startDate, startTime, endDate, endTime, numberOfCourts, maximumPlayers, mode, rotationMode ?? RotationMode);
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     private void SetDetails(string name, DateOnly startDate, TimeOnly startTime, DateOnly endDate,
@@ -436,7 +456,7 @@ public sealed class PlaySession
         if (Status != PlaySessionStatus.Active) throw new PlayConflictException("Only an Active session can be ended.");
         EnsureTimestamp(now);
         Status = PlaySessionStatus.Ended;
-        UpdatedAt = now.ToUniversalTime();
+        Touch(now);
     }
 
     private PlaySessionPlayer FindPlayer(Guid id) => _players.SingleOrDefault(p => p.Id == id && !p.IsRemoved)

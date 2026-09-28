@@ -20,6 +20,7 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
             table.HasCheckConstraint("CK_PlaySessions_QueueCounter", "\"NextQueueOrder\" >= 0");
             table.HasCheckConstraint("CK_PlaySessions_Timestamps", "\"UpdatedAt\" >= \"CreatedAt\"");
         });
+        session.Property(s => s.NextRoundJson).HasColumnType("jsonb");
         session.HasKey(s => s.Id);
         session.Property(s => s.Id).ValueGeneratedNever();
         session.Property(s => s.JoinCode).HasMaxLength(6).IsRequired();

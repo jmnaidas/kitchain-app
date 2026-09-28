@@ -67,3 +67,10 @@ button:focus-visible {
   outline: 2px solid var(--forest);
   outline-offset: 3px;
 }
+
+optgroup {
+  font-weight: 700;
+}
+option {
+  font-weight: 400;
+}

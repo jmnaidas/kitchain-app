@@ -19,6 +19,8 @@ import { Observable, Subscription, switchMap, tap } from 'rxjs';
 import { PlayPlayerList, PlayerStateChange } from '../components/play-player-list';
 import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
+import { PlayRoundPlanner } from '../components/play-round-planner';
+import { PlayPlannerAction } from '../data-access/play.models';
 import { ReadyLineupAction } from '../components/play-next-game';
 import { PlayMatchSummary } from '../components/play-match-summary';
 import { PlayInsights } from '../components/play-insights';
@@ -52,6 +54,7 @@ import {
     PlaySessionHeader,
     PlayRosterBuilder,
     PlayCourts,
+    PlayRoundPlanner,
     PlaySessionForm,
     PlayMatchSummary,
     PlayInsights,
@@ -374,6 +377,19 @@ export class PlayRoom {
       `finish:${matchId}`,
       this.api.finish(this.code, matchId, winner),
       'Game complete. Review the next lineup when ready.',
+    );
+  }
+  protected planRound(intent: PlayPlannerAction) {
+    if (this.session()?.status !== 'Active') return;
+    const { action, ...input } = intent;
+    const operation =
+      action === 'edit'
+        ? this.api.editNextRound(this.code, input)
+        : this.api.nextRoundAction(this.code, action, intent.expectedRevision);
+    this.change(
+      'next-round',
+      operation,
+      action === 'finalize' ? 'Next round finalized.' : 'Next round updated.',
     );
   }
   protected readyLineup(intent: ReadyLineupAction) {
