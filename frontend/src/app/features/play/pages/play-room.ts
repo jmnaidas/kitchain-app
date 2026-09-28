@@ -24,6 +24,7 @@ import { PlayPlannerAction, PlaySkillLevel } from '../data-access/play.models';
 import { ReadyLineupAction } from '../components/play-next-game';
 import { PlayMatchSummary } from '../components/play-match-summary';
 import { PlayInsights } from '../components/play-insights';
+import { PlayMatchups } from '../components/play-matchups';
 import { PlaySessionForm } from '../components/play-session-form';
 import { RecentPlaySessions } from '../data-access/recent-play-sessions';
 import { PlayRosterBuilder } from '../components/play-roster-builder';
@@ -58,6 +59,7 @@ import {
     PlaySessionForm,
     PlayMatchSummary,
     PlayInsights,
+    PlayMatchups,
   ],
   templateUrl: './play-room.html',
   styleUrl: './play-room.scss',
@@ -108,9 +110,9 @@ export class PlayRoom {
   protected readonly shareFallback = signal('');
   protected readonly guestName = signal('');
   protected readonly nameError = signal('');
-  protected readonly view = signal<'courts' | 'queue' | 'players' | 'history' | 'insights'>(
-    'queue',
-  );
+  protected readonly view = signal<
+    'courts' | 'queue' | 'players' | 'history' | 'matchups' | 'insights'
+  >('queue');
   protected readonly playerCourts = computed(() =>
     Object.fromEntries(
       (this.session()?.currentMatches ?? []).flatMap((match) =>

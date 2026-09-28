@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { PlayNextRound, PlayPlannerAction } from '../data-access/play.models';
+import { PlayNextRound, PlayPlannerAction, lineupPlayerLabel } from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-round-planner',
@@ -12,6 +12,12 @@ export class PlayRoundPlanner {
   readonly disabled = input(false);
   readonly opening = input(false);
   readonly action = output<PlayPlannerAction>();
+  private readonly skills = computed(
+    () => new Map(this.plan().eligiblePlayers.map((p) => [p.id, p.skillLevel])),
+  );
+  protected playerLabel(id: string, name: string) {
+    return lineupPlayerLabel(name, this.skills().get(id));
+  }
   protected readonly available = computed(() => {
     const assigned = new Set(this.plan().courts.flatMap((c) => c.players.map((p) => p.playerId)));
     return this.plan().eligiblePlayers.filter((p) => !assigned.has(p.id));

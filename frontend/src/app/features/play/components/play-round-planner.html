@@ -55,7 +55,7 @@
                             [value]="player.playerId"
                             [selected]="slot.playerId === player.playerId"
                           >
-                            {{ player.displayName }}
+                            {{ playerLabel(player.playerId, player.displayName) }}
                           </option>
                         }
                       </optgroup>
@@ -65,7 +65,9 @@
                             [label]="'COURT ' + other.courtNumber + ' · SELECT TO SWAP COURTS'"
                           >
                             @for (player of other.players; track player.playerId) {
-                              <option [value]="player.playerId">{{ player.displayName }}</option>
+                              <option [value]="player.playerId">
+                                {{ playerLabel(player.playerId, player.displayName) }}
+                              </option>
                             }
                           </optgroup>
                         }
@@ -75,8 +77,8 @@
                       >
                         @for (player of available(); track player.id) {
                           <option [value]="player.id">
-                            {{ player.displayName
-                            }}{{ player.state === 'Playing' ? ' · playing now' : ' · waiting' }}
+                            {{ playerLabel(player.id, player.displayName)
+                            }}{{ player.state === 'Playing' ? ' · playing now' : '' }}
                           </option>
                         }
                       </optgroup>

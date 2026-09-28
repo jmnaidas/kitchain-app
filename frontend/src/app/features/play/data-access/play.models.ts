@@ -63,6 +63,9 @@ export const playCallOuts: readonly PlayRallyCallOut[] = [
 ];
 export const callOutLabel = (value: PlayRallyCallOut) =>
   value === 'ServiceBreak' ? 'Service break' : value === 'WrongCourt' ? 'Wrong court' : value;
+export const lineupPlayerLabel = (name: string, level?: PlaySkillLevel | null) =>
+  level ? name + ' · ' + skillLabel(level) : name;
+
 export interface PlayRallyEvent {
   id: string;
   matchId: string;

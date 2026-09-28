@@ -1,0 +1,65 @@
+:host {
+  display: block;
+}
+h2 {
+  font: 400 1.7rem var(--font-display);
+}
+.note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+select {
+  width: 100%;
+  max-width: 24rem;
+  min-height: 2.75rem;
+  padding: 0.6rem;
+  font: inherit;
+  color: var(--forest);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+select:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+}
+.coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+.relationships {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+li span:first-child,
+h3 {
+  overflow-wrap: anywhere;
+}
+.count {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+@media (max-width: 600px) {
+  .relationships {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

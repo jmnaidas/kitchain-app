@@ -1,0 +1,49 @@
+<h2>Matchups</h2>
+<p class="note">
+  Completed games in this session only. Coverage includes the current roster, including players
+  sitting out; removed players are excluded.
+</p>
+@if (player(); as selected) {
+  <label for="matchup-player">Player</label>
+  <select id="matchup-player" [value]="selected.id" (change)="select($event)">
+    @for (p of session().players; track p.id) {
+      <option [value]="p.id" [selected]="p.id === selected.id">{{ p.displayName }}</option>
+    }
+  </select>
+  <h3>{{ selected.displayName }}</h3>
+  <div class="coverage" aria-label="Matchup coverage">
+    <p>
+      Teammates met: <strong>{{ history().teammatesMet }} / {{ history().total }}</strong>
+    </p>
+    <p>
+      Opponents faced: <strong>{{ history().opponentsFaced }} / {{ history().total }}</strong>
+    </p>
+  </div>
+  @if (!session().matchHistory.length) {
+    <p class="note">No completed games yet. Relationships will appear as games finish.</p>
+  }
+  @if (history().total) {
+    <div class="relationships">
+      @for (kind of ['teamedWith', 'playedAgainst']; track kind) {
+        <section [attr.aria-label]="kind === 'teamedWith' ? 'Teamed with' : 'Played against'">
+          <h3>{{ kind === 'teamedWith' ? 'Teamed with' : 'Played against' }}</h3>
+          <ul>
+            @for (row of history().rows; track row.playerId) {
+              @let count = kind === 'teamedWith' ? row.teamedWith : row.playedAgainst;
+              <li>
+                <span>{{ row.displayName }}</span
+                ><span class="count">{{
+                  count ? count + (count === 1 ? ' game' : ' games') : 'Never'
+                }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </div>
+  } @else {
+    <p>Add another player to see matchup coverage.</p>
+  }
+} @else {
+  <p>No players in this session yet.</p>
+}

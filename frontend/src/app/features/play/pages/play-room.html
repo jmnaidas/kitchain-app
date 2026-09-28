@@ -196,6 +196,13 @@
             </button>
             <button
               type="button"
+              [attr.aria-pressed]="view() === 'matchups'"
+              (click)="view.set('matchups')"
+            >
+              Matchups
+            </button>
+            <button
+              type="button"
               [attr.aria-pressed]="view() === 'insights'"
               (click)="view.set('insights')"
             >
@@ -214,6 +221,8 @@
               (correction)="correctScore($event)"
               [correctionSaved]="correctionSaved()"
             />
+          } @else if (view() === 'matchups') {
+            <app-play-matchups [session]="room" />
           } @else if (view() === 'insights') {
             <app-play-insights [insights]="room.insights" />
           } @else if (view() === 'history') {

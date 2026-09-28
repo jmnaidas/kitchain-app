@@ -1752,6 +1752,162 @@ describe('Play experience', () => {
     };
   }
 
+  it('shows session Matchups, switches players, and refreshes relationships in an Ended room', async () => {
+    const state = {
+      ...room(crew),
+      status: 'Ended' as const,
+      matchHistory: [summary(), summary({ id: 'second' })],
+    };
+    await openRoom(state);
+    click('Matchups');
+    const panel = () => element.querySelector('app-play-matchups')!;
+    const rows = (label: string) =>
+      Array.from(panel().querySelectorAll(`[aria-label="${label}"] li`)).map((r) =>
+        Array.from(r.querySelectorAll('span'), (span) => span.textContent?.trim()).join(' · '),
+      );
+    expect(button('Matchups').getAttribute('aria-pressed')).toBe('true');
+    expect(rows('Teamed with')).toEqual([
+      'Blair · 2 games',
+      'Casey · Never',
+      'Drew · Never',
+      'Ellis · Never',
+    ]);
+    expect(rows('Played against')).toEqual([
+      'Blair · Never',
+      'Casey · 2 games',
+      'Drew · 2 games',
+      'Ellis · Never',
+    ]);
+    expect(panel().textContent).toMatch(/Teammates met:\s*1 \/ 4/);
+    expect(panel().textContent).toMatch(/Opponents faced:\s*2 \/ 4/);
+    hostValue('#matchup-player', 'c', 'change');
+    expect(rows('Teamed with')).toContain('Drew · 2 games');
+    expect(rows('Played against')).toContain('Alex · 2 games');
+    expect(rows('Played against')).not.toContain('Casey · Never');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http
+      .expectOne(base + '/' + code)
+      .flush({ ...state, matchHistory: [...state.matchHistory, summary({ id: 'third' })] });
+    await settle();
+    expect(element.querySelector<HTMLSelectElement>('#matchup-player')!.value).toBe('c');
+    expect(rows('Teamed with')).toContain('Drew · 3 games');
+    expect(panel().querySelector('button')).toBeNull();
+    http.expectNone((r) => r.method !== 'GET');
+  });
+
+  it('keeps Matchups useful before any game and recovers selection when a roster player is removed', async () => {
+    const state = readyRoom();
+    await openRoom(state);
+    click('Matchups');
+    expect(element.textContent).toContain('No completed games yet');
+    expect(element.querySelectorAll('app-play-matchups li')).toHaveLength(
+      (state.players.length - 1) * 2,
+    );
+    expect(element.querySelector('app-play-matchups')!.textContent).toMatch(
+      /Teammates met:\s*0 \/ 7/,
+    );
+    hostValue('#matchup-player', 'e', 'change');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http
+      .expectOne(base + '/' + code)
+      .flush({ ...state, players: state.players.filter((p) => p.id !== 'e') });
+    await settle();
+    expect(element.querySelector<HTMLSelectElement>('#matchup-player')!.value).toBe('a');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http.expectOne(base + '/' + code).flush(room());
+    await settle();
+    expect(element.querySelector('app-play-matchups')!.textContent).toContain(
+      'No players in this session yet',
+    );
+  });
+
+  for (const status of ['Draft', 'Active'] as const) {
+    it(
+      'shows informational skills in all ' +
+        status +
+        ' planner choice groups and preserves editing',
+      async () => {
+        const state = openingRoom();
+        state.status = status;
+        state.rotationMode = 'FairRotation';
+        state.nextRound!.eligiblePlayers[0].skillLevel = 'Advanced';
+        state.nextRound!.eligiblePlayers[4].skillLevel = 'HighIntermediate';
+        state.nextRound!.eligiblePlayers[8].skillLevel = 'Novice';
+        await openRoom(state);
+        click('Queue ' + state.waitingQueue.length);
+        const select = element.querySelector<HTMLSelectElement>('app-play-round-planner select')!;
+        const label = (id: string) =>
+          Array.from(select.options)
+            .find((o) => o.value === id)!
+            .textContent!.trim();
+        expect(label('future-0')).toBe('Future 0 · Advanced');
+        expect(label('future-1')).toBe('Future 1');
+        expect(label('future-4')).toBe('Future 4 · High Intermediate');
+        expect(label('future-8')).toBe('Future 8 · Novice');
+        select.value = 'future-8';
+        select.dispatchEvent(new Event('change'));
+        fixture.detectChanges();
+        const request = http.expectOne(base + '/' + code + '/next-round');
+        expect(request.request.body).toEqual({
+          matchId: 'scored-match',
+          position: 1,
+          playerId: 'future-8',
+          expectedRevision: 4,
+        });
+        request.flush(state);
+        await settle();
+        expect(select.value).toBe('future-0');
+      },
+    );
+  }
+
+  it('shows Ready skills for own, other-court and waiting choices without changing swap revisions', async () => {
+    const state = readyRoom();
+    state.currentMatches[0].eligiblePlayers.find((p) => p.id === 'a')!.skillLevel = 'Advanced';
+    state.currentMatches[0].eligiblePlayers.find((p) => p.id === 'e')!.skillLevel = 'Novice';
+    const otherPlayers = crew
+      .slice(0, 4)
+      .map((p) => ({ ...p, id: 'other-' + p.id, skillLevel: 'HighIntermediate' as const }));
+    state.currentMatches.push({
+      ...state.currentMatches[0],
+      id: 'other',
+      courtNumber: 2,
+      lineupRevision: 2,
+      eligiblePlayers: otherPlayers,
+      players: otherPlayers.map((p, i) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        team: i < 2 ? 'A' : 'B',
+        position: i + 1,
+      })),
+    });
+    await openRoom(state);
+    click('Courts');
+    const select = element.querySelector<HTMLSelectElement>('app-play-next-game select')!;
+    const label = (id: string) =>
+      Array.from(select.options)
+        .find((o) => o.value === id)!
+        .textContent!.trim();
+    expect(label('a')).toBe('Alex · Advanced');
+    expect(label('b')).toBe('Blair');
+    expect(label('e')).toBe('Ellis · Novice');
+    expect(label('other-c')).toBe('Casey · High Intermediate');
+    chooseSlot(1, 'other-c');
+    const request = http.expectOne(base + '/' + code + '/matches/scored-match/lineup');
+    expect(request.request.body).toEqual({
+      position: 1,
+      playerId: 'other-c',
+      expectedRevision: 0,
+      otherMatchId: 'other',
+      otherExpectedRevision: 2,
+    });
+    request.flush(state);
+    await settle();
+  });
+
   function openingRoom(): PlaySession {
     const source = plannerRoom();
     const players = source.nextRound!.eligiblePlayers.filter((p) => p.state === 'Waiting');

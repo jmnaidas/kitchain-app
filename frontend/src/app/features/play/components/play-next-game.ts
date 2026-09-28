@@ -4,6 +4,7 @@ import {
   PlayMatch,
   PlayRotationMode,
   rotationLabel,
+  lineupPlayerLabel,
 } from '../data-access/play.models';
 
 export interface ReadyLineupAction {
@@ -35,6 +36,17 @@ export class PlayNextGame {
   readonly startNext = output<NextPlayGame>();
   readonly readyAction = output<ReadyLineupAction>();
   protected readonly rotationLabel = rotationLabel;
+  private readonly skills = computed(
+    () =>
+      new Map(
+        [this.match(), ...this.currentMatches()]
+          .flatMap((m) => m.eligiblePlayers)
+          .map((p) => [p.id, p.skillLevel]),
+      ),
+  );
+  protected playerLabel(id: string, name: string) {
+    return lineupPlayerLabel(name, this.skills().get(id));
+  }
   protected readonly slots = computed(() =>
     [...this.match().players].sort((a, b) => a.position - b.position),
   );
