@@ -13,7 +13,7 @@ internal static class PlayRotationPolicy
             PlayTeamPairing.Recommend(sessionId, selected, history, seed);
 
         if (mode == PlayRotationMode.BalancedRotation)
-            return PlayBalancedRotation.Pair(Pair(Fair(eligible, 4)));
+            return PlayTeamPairing.RecommendBalanced(sessionId, Fair(eligible, 4), history, seed);
 
         // Initial games, no-result completions and Fair Rotation keep the original path.
         if (mode == PlayRotationMode.FairRotation || previous?.Winner is null || eligible.Count < 4)

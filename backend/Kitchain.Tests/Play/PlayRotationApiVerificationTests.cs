@@ -50,6 +50,8 @@ public sealed class PlayRotationApiVerificationTests(PostgresCourtFixture fixtur
     }
 
     [PostgresTheory]
+    [InlineData(PlayRotationMode.FairRotation)]
+    [InlineData(PlayRotationMode.BalancedRotation)]
     [InlineData(PlayRotationMode.WinnersStay)]
     [InlineData(PlayRotationMode.ChallengersStay)]
     [InlineData(PlayRotationMode.SplitTeams)]
@@ -105,7 +107,8 @@ public sealed class PlayRotationApiVerificationTests(PostgresCourtFixture fixtur
             p => firstHold.CurrentMatches[1].Players.Any(other => other.PlayerId == p.PlayerId));
         await Finish(url, current[1].Id, PlayTeam.B);
         var bothHeld = await Read(url);
-        Assert.Equal(1, bothHeld.Queue.CourtNumber);
+        Assert.Null(bothHeld.Queue.CourtNumber);
+        Assert.Equal(new[] { 1, 2 }, bothHeld.NextRound!.Courts.Select(c => c.CourtNumber));
         await Confirm(url, bothHeld.CurrentMatches[0]);
         var afterFirst = await Read(url);
         var second = afterFirst.CurrentMatches.Single(m => m.CourtNumber == 2);
@@ -148,7 +151,7 @@ public sealed class PlayRotationApiVerificationTests(PostgresCourtFixture fixtur
             using var edit = await fixture.Client.PatchAsJsonAsync(url, body);
             Assert.Equal(HttpStatusCode.BadRequest, create.StatusCode);
             Assert.Equal(HttpStatusCode.BadRequest, edit.StatusCode);
-            Assert.Equal(PlayRotationMode.SplitTeams, (await Read(url)).RotationMode);
+            Assert.Equal(Enum.GetValues<PlayRotationMode>().Last(), (await Read(url)).RotationMode);
         }
     }
 }

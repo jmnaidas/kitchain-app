@@ -12,10 +12,10 @@ internal static class PlayBalancedRotation
             .OrderBy(KnownCountDifference).ThenBy(StrengthDifference).First();
     }
 
-    private static int KnownCountDifference(PlaySessionPlayer[] players) =>
+    internal static int KnownCountDifference(PlaySessionPlayer[] players) =>
         Math.Abs(players.Take(2).Count(p => p.SkillLevel.HasValue) - players.Skip(2).Count(p => p.SkillLevel.HasValue));
 
-    private static decimal StrengthDifference(PlaySessionPlayer[] players)
+    internal static decimal StrengthDifference(PlaySessionPlayer[] players)
     {
         var a = players.Take(2).Where(p => p.SkillLevel.HasValue).Select(p => (decimal)p.SkillLevel!.Value).ToArray();
         var b = players.Skip(2).Where(p => p.SkillLevel.HasValue).Select(p => (decimal)p.SkillLevel!.Value).ToArray();

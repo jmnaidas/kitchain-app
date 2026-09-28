@@ -141,7 +141,9 @@ public sealed partial class PlaySession
             pool.RemoveAll(selected.Contains);
             return selected;
         }).ToArray();
-        return RotationMode == PlayRotationMode.BalancedRotation
+        // With history, keep the fair court groups and their coverage-aware balanced pairing.
+        // The opening's existing skill distribution remains unchanged.
+        return RotationMode == PlayRotationMode.BalancedRotation && !_matches.Any(m => m.Status == PlayMatchStatus.Completed)
             ? PlayBalancedRotation.Courts(groups, (i, players) => PlayTeamPairing.Recommend(Id, players, _matches, seeds[i]))
             : groups;
     }
