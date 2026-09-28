@@ -4,6 +4,7 @@ import {
   CreatePlaySession,
   normalizeCode,
   PlayPlayer,
+  PlaySkillLevel,
   PlaySession,
   PlayScoreCorrection,
   PlayTeam,
@@ -70,6 +71,17 @@ export class PlayApi {
     return this.http.patch<PlaySession>(
       `${this.url(code)}/players/${encodeURIComponent(playerId)}`,
       { displayName },
+    );
+  }
+  setSkill(
+    code: string,
+    playerId: string,
+    skillLevel: PlaySkillLevel | null,
+    expectedRevision: number,
+  ) {
+    return this.http.patch<PlaySession>(
+      this.url(code) + '/players/' + encodeURIComponent(playerId) + '/skill',
+      { skillLevel, expectedRevision },
     );
   }
   removeGuest(code: string, playerId: string) {

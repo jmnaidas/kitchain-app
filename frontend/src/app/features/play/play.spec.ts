@@ -1752,6 +1752,176 @@ describe('Play experience', () => {
     };
   }
 
+  function openingRoom(): PlaySession {
+    const source = plannerRoom();
+    const players = source.nextRound!.eligiblePlayers.filter((p) => p.state === 'Waiting');
+    return {
+      ...room(players),
+      rotationMode: 'BalancedRotation',
+      nextRound: { ...source.nextRound!, eligiblePlayers: players },
+      queue: { ...source.queue, heldPlayers: 0 },
+    };
+  }
+
+  it('offers all five optional skill labels and round-trips edits and clearing through the canonical API', async () => {
+    const state = openingRoom();
+    await openRoom(state);
+    click('Players ' + state.players.length);
+    const select = () =>
+      element.querySelector<HTMLSelectElement>('select[aria-label="Skill level for Future 0"]')!;
+    expect(Array.from(select().options).map((o) => o.textContent?.trim())).toEqual([
+      'Not set',
+      'Beginner',
+      'Novice',
+      'Low Intermediate',
+      'High Intermediate',
+      'Advanced',
+    ]);
+    expect(select().value).toBe('');
+    select().value = 'HighIntermediate';
+    select().dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    const request = http.expectOne(base + '/' + code + '/players/future-0/skill');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ skillLevel: 'HighIntermediate', expectedRevision: 4 });
+    expect(select().disabled).toBe(true);
+    const changed = structuredClone(state);
+    changed.players[0].skillLevel = 'HighIntermediate';
+    changed.nextRound!.revision = 5;
+    request.flush(changed);
+    await settle();
+    expect(select().value).toBe('HighIntermediate');
+    select().value = '';
+    select().dispatchEvent(new Event('change'));
+    const clear = http.expectOne(base + '/' + code + '/players/future-0/skill');
+    expect(clear.request.body).toEqual({ skillLevel: null, expectedRevision: 5 });
+    changed.players[0].skillLevel = null;
+    changed.nextRound!.revision = 6;
+    clear.flush(changed);
+    await settle();
+    expect(select().value).toBe('');
+  });
+
+  it('refetches skill conflicts and shows skills read-only after the session ends', async () => {
+    const state = openingRoom();
+    state.status = 'Active';
+    await openRoom(state);
+    click('Players ' + state.players.length);
+    hostValue('select[aria-label="Skill level for Future 0"]', 'Novice', 'change');
+    http
+      .expectOne(base + '/' + code + '/players/future-0/skill')
+      .flush({ title: 'The session changed.' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+    state.players[0].skillLevel = 'Advanced';
+    state.nextRound!.revision = 5;
+    http.expectOne(base + '/' + code).flush(state);
+    await settle();
+    expect(
+      element.querySelector<HTMLSelectElement>('select[aria-label="Skill level for Future 0"]')!
+        .value,
+    ).toBe('Advanced');
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http.expectOne(base + '/' + code).flush({ ...state, status: 'Ended' });
+    await settle();
+    expect(element.querySelector('select.skill')).toBeNull();
+    expect(element.querySelector('app-play-player-list')!.textContent).toContain('Advanced');
+  });
+
+  it('edits eight Draft opening assignments across two courts and preserves them on Start Session', async () => {
+    let state = openingRoom();
+    await openRoom(state);
+    click('Queue ' + state.waitingQueue.length);
+    expect(element.querySelectorAll('app-play-round-planner select')).toHaveLength(8);
+    expect(element.querySelector('#next-up-title')).toBeNull();
+    expect(element.textContent).toContain('Opening Round · Next Up');
+    expect(element.querySelector('[aria-label="Opening round Court 1"]')).not.toBeNull();
+    expect(element.querySelector('[aria-label="Opening round Court 2"]')).not.toBeNull();
+    expect(element.textContent).not.toContain('Finalize Next Round');
+    const select = () => element.querySelector<HTMLSelectElement>('app-play-round-planner select')!;
+    expect(Array.from(select().querySelectorAll('optgroup')).map((g) => g.label)).toEqual([
+      'IN THIS LINEUP · SELECT TO SWAP',
+      'COURT 2 · SELECT TO SWAP COURTS',
+      'AVAILABLE / WAITING',
+    ]);
+    for (const playerId of ['future-2', 'future-5', 'future-8']) {
+      select().value = playerId;
+      select().dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      const request = http.expectOne(base + '/' + code + '/next-round');
+      expect(request.request.body).toEqual({
+        matchId: 'scored-match',
+        position: 1,
+        playerId,
+        expectedRevision: state.nextRound!.revision,
+      });
+      expect(select().disabled).toBe(true);
+      const changed = structuredClone(state);
+      const courts = changed.nextRound!.courts;
+      const current = courts[0].players[0];
+      const other = courts.flatMap((c) => c.players).find((p) => p.playerId === playerId);
+      if (other) {
+        other.playerId = current.playerId;
+        other.displayName = current.displayName;
+      }
+      courts[0].players[0] = {
+        ...current,
+        playerId,
+        displayName: changed.players.find((p) => p.id === playerId)!.displayName,
+      };
+      changed.nextRound!.revision++;
+      request.flush(changed);
+      await settle();
+      state = changed;
+      expect(select().value).toBe(playerId);
+    }
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http.expectOne(base + '/' + code).flush(state);
+    await settle();
+    expect(select().value).toBe('future-8');
+    click('Start Session');
+    const start = http.expectOne(base + '/' + code + '/start');
+    const ready = readyRoom().currentMatches[0];
+    const started: PlaySession = {
+      ...state,
+      status: 'Active',
+      nextRound: { ...state.nextRound!, courts: [] },
+      currentMatches: state.nextRound!.courts.map((c) => ({
+        ...ready,
+        id: c.matchId,
+        courtNumber: c.courtNumber,
+        players: c.players,
+        eligiblePlayers: state.players,
+      })),
+    };
+    start.flush(started);
+    await settle();
+    click('Courts');
+    expect(
+      Array.from(element.querySelectorAll<HTMLSelectElement>('app-play-next-game select')).map(
+        (s) => s.value,
+      ),
+    ).toEqual(state.nextRound!.courts.flatMap((c) => c.players.map((p) => p.playerId)));
+  });
+
+  it('refetches stale Draft opening edits and keeps the refreshed court arrangement', async () => {
+    const state = openingRoom();
+    await openRoom(state);
+    hostValue('app-play-round-planner select', 'future-8', 'change');
+    http
+      .expectOne(base + '/' + code + '/next-round')
+      .flush({ title: 'Opening changed.' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+    state.nextRound!.revision = 10;
+    http.expectOne(base + '/' + code).flush(state);
+    await settle();
+    expect(element.querySelectorAll('app-play-round-planner select')).toHaveLength(8);
+    expect(element.querySelector<HTMLSelectElement>('app-play-round-planner select')!.value).toBe(
+      'future-0',
+    );
+  });
+
   function plannerRoom(): PlaySession {
     const state = scoredRoom();
     const futurePlayers = Array.from({ length: 9 }, (_, i) =>

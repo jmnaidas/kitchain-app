@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { PlayPlayer } from '../data-access/play.models';
+import { PlayPlayer, PlaySkillLevel, skillLevels, skillLabel } from '../data-access/play.models';
 import { PlayDraftPlayer } from './play-draft-player';
 
 export interface PlayerStateChange {
@@ -28,6 +28,17 @@ export class PlayPlayerList {
   readonly completedPlayers = input<Readonly<Record<string, boolean>>>({});
   readonly renamePlayer = output<{ playerId: string; displayName: string }>();
   readonly removePlayer = output<string>();
+
+  readonly skillChange = output<{ playerId: string; skillLevel: PlaySkillLevel | null }>();
+  protected readonly skillLevels = skillLevels;
+  protected readonly skillLabel = skillLabel;
+  protected setSkill(player: PlayPlayer, event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const skillLevel = (select.value || null) as PlaySkillLevel | null;
+    select.value = player.skillLevel ?? '';
+    if (this.disabled() || this.readOnly() || !this.managed()) return;
+    this.skillChange.emit({ playerId: player.id, skillLevel });
+  }
 
   protected change(player: PlayPlayer) {
     if (

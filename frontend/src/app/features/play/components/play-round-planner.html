@@ -1,20 +1,35 @@
-<section aria-label="Next round planner" [attr.aria-busy]="disabled()">
-  <h2>Next round</h2>
+<section
+  [attr.aria-label]="opening() ? 'Opening round planner' : 'Next round planner'"
+  [class.opening]="opening()"
+  [attr.aria-busy]="disabled()"
+>
+  <h2>{{ opening() ? 'Opening Round · Next Up' : 'Next round' }}</h2>
   @if (plan().courts.length) {
     <p role="status">
       {{
-        plan().finalized
-          ? 'Finalized · saved for the next games'
-          : 'Draft · finalize when the lineups are ready'
+        opening()
+          ? 'Saved as you arrange · Start Session confirms these lineups'
+          : plan().finalized
+            ? 'Finalized · saved for the next games'
+            : 'Draft · finalize when the lineups are ready'
       }}
     </p>
-    <p class="help">
-      These are future games. Players may still be playing now. Editing a finalized plan makes it a
-      draft again.
-    </p>
+    @if (!opening()) {
+      <p class="help">
+        These are future games. Players may still be playing now. Editing a finalized plan makes it
+        a draft again.
+      </p>
+    }
     @for (court of plan().courts; track court.matchId) {
-      <section [attr.aria-label]="'Next round Court ' + court.courtNumber">
+      <section
+        [attr.aria-label]="
+          (opening() ? 'Opening round Court ' : 'Next round Court ') + court.courtNumber
+        "
+      >
         <h3>Court {{ court.courtNumber }}</h3>
+        @if (court.players.length < 4) {
+          <p class="help">{{ 4 - court.players.length }} more players needed for this court.</p>
+        }
         <div class="lineup">
           @for (team of ['A', 'B']; track team) {
             <div class="team">
@@ -25,7 +40,10 @@
                     <span class="sr-only">Player {{ slot.position }}</span>
                     <select
                       [attr.aria-label]="
-                        'Next round Court ' + court.courtNumber + ' player ' + slot.position
+                        (opening() ? 'Opening round Court ' : 'Next round Court ') +
+                        court.courtNumber +
+                        ' player ' +
+                        slot.position
                       "
                       [disabled]="disabled()"
                       [value]="slot.playerId"
@@ -52,7 +70,9 @@
                           </optgroup>
                         }
                       }
-                      <optgroup label="AVAILABLE FOR NEXT ROUND">
+                      <optgroup
+                        [label]="opening() ? 'AVAILABLE / WAITING' : 'AVAILABLE FOR NEXT ROUND'"
+                      >
                         @for (player of available(); track player.id) {
                           <option [value]="player.id">
                             {{ player.displayName
@@ -71,21 +91,27 @@
     }
     <div class="actions">
       <button type="button" [disabled]="disabled()" (click)="emit('reset')">
-        Reset Next Round
+        {{ opening() ? 'Reset Opening Round' : 'Reset Next Round' }}
       </button>
-      <button
-        type="button"
-        class="primary"
-        [disabled]="disabled() || plan().finalized"
-        (click)="emit('finalize')"
-      >
-        Finalize Next Round
-      </button>
+      @if (!opening()) {
+        <button
+          type="button"
+          class="primary"
+          [disabled]="disabled() || plan().finalized"
+          (click)="emit('finalize')"
+        >
+          Finalize Next Round
+        </button>
+      }
     </div>
-    <p class="help">
-      Proceed in Courts after the current games finish. Cross-court plans wait for the courts they
-      depend on; those courts become Ready together. Ready remains your final checkpoint.
-    </p>
+    @if (!opening()) {
+      <p class="help">
+        Proceed in Courts after the current games finish. Cross-court plans wait for the courts they
+        depend on; those courts become Ready together. Ready remains your final checkpoint.
+      </p>
+    }
+  } @else if (opening()) {
+    <p>Add players to arrange the opening round.</p>
   } @else {
     <p>
       Start a Ready game to plan its next lineup. Four eligible players are needed for each future

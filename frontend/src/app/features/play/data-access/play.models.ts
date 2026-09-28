@@ -1,9 +1,15 @@
-export type PlayRotationMode = 'FairRotation' | 'WinnersStay' | 'ChallengersStay' | 'SplitTeams';
+export type PlayRotationMode =
+  'FairRotation' | 'WinnersStay' | 'ChallengersStay' | 'SplitTeams' | 'BalancedRotation';
 export const rotationStyles: { value: PlayRotationMode; label: string; description: string }[] = [
   {
     value: 'FairRotation',
     label: 'Fair Rotation',
     description: 'Everyone rotates based on games played, waiting time and team variety.',
+  },
+  {
+    value: 'BalancedRotation',
+    label: 'Balanced Rotation',
+    description: 'Balances skill while keeping play opportunities fair.',
   },
   {
     value: 'WinnersStay',
@@ -21,12 +27,23 @@ export const rotationStyles: { value: PlayRotationMode; label: string; descripti
     description: 'Mix the previous teams and rotate partners for more variety.',
   },
 ];
+export type PlaySkillLevel =
+  'Beginner' | 'Novice' | 'LowIntermediate' | 'HighIntermediate' | 'Advanced';
+export const skillLevels: { value: PlaySkillLevel; label: string }[] = [
+  { value: 'Beginner', label: 'Beginner' },
+  { value: 'Novice', label: 'Novice' },
+  { value: 'LowIntermediate', label: 'Low Intermediate' },
+  { value: 'HighIntermediate', label: 'High Intermediate' },
+  { value: 'Advanced', label: 'Advanced' },
+];
+export const skillLabel = (level?: PlaySkillLevel | null) =>
+  skillLevels.find((s) => s.value === level)?.label ?? 'Not set';
 export const rotationLabel = (mode: PlayRotationMode) =>
   rotationStyles.find((style) => style.value === mode)?.label ?? 'Fair Rotation';
 
 export const rotationDescription = (mode: PlayRotationMode) =>
   rotationStyles.find((style) => style.value === mode)?.description ??
-  rotationStyles[0].description;
+  rotationStyles.find((style) => style.value === 'FairRotation')!.description;
 
 export type SessionStatus = 'Draft' | 'Active' | 'Ended';
 export type PlayerState = 'Waiting' | 'Playing' | 'Resting';
@@ -110,6 +127,7 @@ export interface PlayPlayer {
   sessionId: string;
   displayName: string;
   identityType: 'Guest';
+  skillLevel?: PlaySkillLevel | null;
   state: PlayerState;
   joinedAt: string;
   updatedAt: string;

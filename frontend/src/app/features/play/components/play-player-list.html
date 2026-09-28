@@ -8,6 +8,24 @@
       }
       <div class="identity">
         <strong>{{ player.displayName }}</strong>
+        @if (managed() && !readOnly()) {
+          <select
+            class="skill"
+            [attr.aria-label]="'Skill level for ' + player.displayName"
+            [value]="player.skillLevel ?? ''"
+            [disabled]="disabled()"
+            (change)="setSkill(player, $event)"
+          >
+            <option value="" [selected]="!player.skillLevel">Not set</option>
+            @for (level of skillLevels; track level.value) {
+              <option [value]="level.value" [selected]="player.skillLevel === level.value">
+                {{ level.label }}
+              </option>
+            }
+          </select>
+        } @else if (player.skillLevel) {
+          <small>{{ skillLabel(player.skillLevel) }}</small>
+        }
         <div class="player-meta">
           <span class="state">
             {{

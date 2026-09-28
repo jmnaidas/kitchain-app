@@ -16,7 +16,7 @@ internal sealed class PlaySessionConfiguration : IEntityTypeConfiguration<PlaySe
             table.HasCheckConstraint("CK_PlaySessions_Schedule", "(\"EndDate\" + \"EndTime\") > (\"SessionDate\" + \"StartTime\")");
             table.HasCheckConstraint("CK_PlaySessions_Capacity", "\"NumberOfCourts\" > 0 AND (\"MaximumPlayers\" IS NULL OR \"MaximumPlayers\" > 0)");
             table.HasCheckConstraint("CK_PlaySessions_Status", "\"Status\" IN ('Draft', 'Active', 'Ended')");
-            table.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" IN ('FairRotation', 'WinnersStay', 'ChallengersStay', 'SplitTeams') AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
+            table.HasCheckConstraint("CK_PlaySessions_DefaultModes", "\"RotationMode\" IN ('FairRotation', 'WinnersStay', 'ChallengersStay', 'SplitTeams', 'BalancedRotation') AND \"ScoringMode\" = 'Traditional' AND \"GameTo\" = 11 AND \"WinBy\" = 2");
             table.HasCheckConstraint("CK_PlaySessions_QueueCounter", "\"NextQueueOrder\" >= 0");
             table.HasCheckConstraint("CK_PlaySessions_Timestamps", "\"UpdatedAt\" >= \"CreatedAt\"");
         });
@@ -44,6 +44,7 @@ internal sealed class PlaySessionPlayerConfiguration : IEntityTypeConfiguration<
     {
         player.ToTable("PlaySessionPlayers", table =>
         {
+            table.HasCheckConstraint("CK_PlaySessionPlayers_SkillLevel", "\"SkillLevel\" IS NULL OR \"SkillLevel\" IN ('Beginner', 'Novice', 'LowIntermediate', 'HighIntermediate', 'Advanced')");
             table.HasCheckConstraint("CK_PlaySessionPlayers_Fairness", "\"AdjustedGamesStarted\" >= 0 AND \"MissedOpportunities\" >= 0");
             table.HasCheckConstraint("CK_PlaySessionPlayers_WaitingSince", "(\"State\" = 'Waiting') = (\"WaitingSince\" IS NOT NULL)");
             table.HasCheckConstraint("CK_PlaySessionPlayers_Name", "length(trim(\"DisplayName\")) > 0 AND length(trim(\"NormalizedDisplayName\")) > 0");
@@ -57,6 +58,7 @@ internal sealed class PlaySessionPlayerConfiguration : IEntityTypeConfiguration<
         player.Property(p => p.DisplayName).HasMaxLength(80).IsRequired();
         player.Property(p => p.NormalizedDisplayName).HasMaxLength(80).IsRequired();
         player.Property(p => p.IdentityType).HasConversion<string>().HasMaxLength(20);
+        player.Property(p => p.SkillLevel).HasConversion<string>().HasMaxLength(20);
         player.Property(p => p.State).HasConversion<string>().HasMaxLength(20);
         player.HasIndex(p => new { p.SessionId, p.NormalizedDisplayName }).IsUnique().HasFilter("NOT \"IsRemoved\"");
         player.HasIndex(p => new { p.SessionId, p.QueueOrder }).IsUnique().HasFilter("\"QueueOrder\" IS NOT NULL");

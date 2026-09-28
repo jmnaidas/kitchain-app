@@ -2,6 +2,7 @@ namespace Kitchain.Domain.Play;
 
 public enum PlayPlayerIdentityType { Guest }
 public enum PlayPlayerState { Waiting, Playing, Resting }
+public enum PlaySkillLevel { Beginner = 1, Novice, LowIntermediate, HighIntermediate, Advanced }
 
 public sealed class PlaySessionPlayer
 {
@@ -31,6 +32,7 @@ public sealed class PlaySessionPlayer
     public string NormalizedDisplayName { get; private set; } = "";
     public PlayPlayerIdentityType IdentityType { get; private set; }
     public PlayPlayerState State { get; private set; }
+    public PlaySkillLevel? SkillLevel { get; private set; }
     public bool IsRemoved { get; private set; }
     public DateTimeOffset JoinedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -44,6 +46,14 @@ public sealed class PlaySessionPlayer
     {
         AdjustedGamesStarted = Math.Max(AdjustedGamesStarted, baseline);
         MissedOpportunities = 0;
+    }
+
+    internal void SetSkillLevel(PlaySkillLevel? level, DateTimeOffset now)
+    {
+        if (level.HasValue && !Enum.IsDefined(level.Value))
+            throw new ArgumentException("Choose a supported skill level or leave it unset.", nameof(level));
+        SkillLevel = level;
+        UpdatedAt = now.ToUniversalTime();
     }
 
     internal void RecordOpportunity(bool selected)

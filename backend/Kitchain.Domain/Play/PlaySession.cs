@@ -1,7 +1,7 @@
 namespace Kitchain.Domain.Play;
 
 public enum PlaySessionStatus { Draft, Active, Ended }
-public enum PlayRotationMode { FairRotation, WinnersStay, ChallengersStay, SplitTeams }
+public enum PlayRotationMode { FairRotation, WinnersStay, ChallengersStay, SplitTeams, BalancedRotation }
 public enum PlayScoringMode { Traditional }
 public enum PlaySessionMode { QueueOnly, LiveScoring }
 
@@ -131,7 +131,17 @@ public sealed partial class PlaySession
     {
         if (Status != PlaySessionStatus.Draft) throw new PlayConflictException("Only a Draft session can be started.");
         EnsureTimestamp(now);
+        var opening = NextRound();
+        var manual = NextRoundJson is not null;
         Status = PlaySessionStatus.Active;
+        NextRoundJson = null;
+        foreach (var court in opening.Courts.Where(c => c.PlayerIds.Length == 4))
+        {
+            var players = court.PlayerIds.Select(FindPlayer).ToArray();
+            var match = new PlayMatch(Id, court.CourtNumber, players, now);
+            if (manual) match.SetLineup(players, true);
+            _matches.Add(match);
+        }
         FillFreeCourts(now);
         Touch(now);
     }
@@ -359,22 +369,13 @@ public sealed partial class PlaySession
             return (all, WaitingQueue.Where(p => !plannedIds.Contains(p.Id)).ToArray(), 0,
                 all.Count(p => p.State == PlayPlayerState.Playing), null);
         }
-        var completed = Status == PlaySessionStatus.Active
-            ? _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Completed)
-                .OrderBy(m => m.CompletedAt).ThenBy(m => m.CourtNumber).FirstOrDefault() : null;
-        var eligible = completed is null ? WaitingQueue : EligibleNextPlayers(completed.Id);
-        IReadOnlyList<PlaySessionPlayer> selected = Status != PlaySessionStatus.Ended && eligible.Count >= 4
-            ? Recommend(eligible, completed?.Id ?? Id) : [];
-        var ready = Status == PlaySessionStatus.Active
-            ? _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready).OrderBy(m => m.CourtNumber)
-                .SelectMany(m => m.Players.OrderBy(p => p.Position)).Select(p => FindPlayer(p.PlayerId)).ToArray() : [];
-        var next = ready.Concat(selected.Where(p => p.State == PlayPlayerState.Waiting)).DistinctBy(p => p.Id).ToArray();
+        var next = NextRound().Courts.SelectMany(c => c.PlayerIds).Select(FindPlayer).ToArray();
         var ids = next.Select(p => p.Id).ToHashSet();
         var waiting = WaitingQueue.Where(p => !ids.Contains(p.Id))
             .OrderBy(p => p.AdjustedGamesStarted).ThenByDescending(p => p.MissedOpportunities / 2)
             .ThenBy(p => p.WaitingSince).ThenBy(p => p.QueueOrder).ThenBy(p => p.Id).ToArray();
-        return (next, waiting, Math.Max(0, 4 - eligible.Count),
-            selected.Count(p => p.State == PlayPlayerState.Playing), completed?.CourtNumber);
+        return (next, waiting, Status == PlaySessionStatus.Draft ? (int)Math.Min(int.MaxValue,
+            Math.Max(0, NumberOfCourts * 4L - next.Length)) : 0, 0, null);
     }
 
     private void FillFreeCourts(DateTimeOffset now)

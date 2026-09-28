@@ -15,13 +15,18 @@ public sealed partial class PlaySession
     {
         NextRoundRevision = checked(NextRoundRevision + 1);
         UpdatedAt = now.ToUniversalTime();
+        if (Status == PlaySessionStatus.Draft && NextRoundJson is not null)
+        {
+            NextRoundJson = JsonSerializer.Serialize(OpeningRound());
+            return;
+        }
         if (NextRoundJson is not null && !ValidPlan(JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson)!, FutureEligiblePlayers()))
             NextRoundJson = null;
     }
 
     public IReadOnlyList<PlaySessionPlayer> FutureEligiblePlayers()
     {
-        if (Status != PlaySessionStatus.Active) return [];
+        if (Status == PlaySessionStatus.Ended) return [];
         var reserved = _matches.Where(m => m.IsCurrent && m.Status == PlayMatchStatus.Ready)
             .SelectMany(m => m.Players).Select(p => p.PlayerId).ToHashSet();
         return _players.Where(p => !p.IsRemoved && p.State != PlayPlayerState.Resting && !reserved.Contains(p.Id)).ToArray();
@@ -29,22 +34,18 @@ public sealed partial class PlaySession
 
     public PlayRoundPlan NextRound()
     {
+        if (Status == PlaySessionStatus.Draft) return OpeningRound();
         if (Status != PlaySessionStatus.Active) return new(false, []);
         var saved = NextRoundJson is null ? null : JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson);
         var eligible = FutureEligiblePlayers();
         if (saved is not null && ValidPlan(saved, eligible))
             return saved;
 
-        var pool = eligible.ToList();
-        var courts = new List<PlayPlannedCourt>();
-        foreach (var match in _matches.Where(m => m.IsCurrent && m.Status != PlayMatchStatus.Ready).OrderBy(m => m.CourtNumber))
-        {
-            if (pool.Count < 4) break;
-            var selected = Recommend(pool, match.Id).Select(p => p.Id).ToArray();
-            courts.Add(new(match.Id, match.CourtNumber, selected));
-            pool.RemoveAll(p => selected.Contains(p.Id));
-        }
-        return new(false, courts.ToArray());
+        var anchors = _matches.Where(m => m.IsCurrent && m.Status != PlayMatchStatus.Ready)
+            .OrderBy(m => m.CourtNumber).Take(eligible.Count / 4).ToArray();
+        var groups = RecommendRound(eligible, anchors.Select(m => m.Id).ToArray());
+        return new(false, anchors.Select((m, i) => new PlayPlannedCourt(m.Id, m.CourtNumber,
+            groups[i].Select(p => p.Id).ToArray())).ToArray());
     }
 
     private bool ValidPlan(PlayRoundPlan plan, IReadOnlyList<PlaySessionPlayer> eligible)
@@ -65,6 +66,8 @@ public sealed partial class PlaySession
         var plan = NextRound();
         var court = plan.Courts.SingleOrDefault(c => c.MatchId == matchId)
             ?? throw new PlayConflictException("The next round changed. Refresh the session.");
+        if (position > court.PlayerIds.Length)
+            throw new PlayConflictException("That opening position is not assigned yet.");
         if (!FutureEligiblePlayers().Any(p => p.Id == playerId))
             throw new PlayConflictException("That player is unavailable for the next round.");
         var other = plan.Courts.SingleOrDefault(c => c.PlayerIds.Contains(playerId));
@@ -78,6 +81,8 @@ public sealed partial class PlaySession
     public void FinalizeNextRound(long expectedRevision, DateTimeOffset now)
     {
         CheckPlan(expectedRevision, now);
+        if (Status != PlaySessionStatus.Active)
+            throw new PlayConflictException("Start Session confirms the opening round.");
         var plan = NextRound();
         if (plan.Courts.Length == 0) throw new PlayConflictException("Start a game before planning the next round.");
         NextRoundJson = JsonSerializer.Serialize(plan with { Finalized = true });
@@ -94,8 +99,69 @@ public sealed partial class PlaySession
     private void CheckPlan(long expectedRevision, DateTimeOffset now)
     {
         EnsureOpen(now);
-        if (Status != PlaySessionStatus.Active || expectedRevision != NextRoundRevision || NextRoundRevision == long.MaxValue)
+        if (expectedRevision != NextRoundRevision || NextRoundRevision == long.MaxValue)
             throw new PlayConflictException("The session or next round changed. Refresh before continuing.");
+    }
+
+    public void SetSkillLevel(Guid playerId, PlaySkillLevel? level, long expectedRevision, DateTimeOffset now)
+    {
+        CheckPlan(expectedRevision, now);
+        FindPlayer(playerId).SetSkillLevel(level, now);
+        Touch(now);
+    }
+
+    private PlaySessionPlayer[][] RecommendRound(IReadOnlyList<PlaySessionPlayer> eligible, Guid[] seeds)
+    {
+        var pool = eligible.ToList();
+        var groups = seeds.Select(seed =>
+        {
+            var selected = Recommend(pool, seed).ToArray();
+            pool.RemoveAll(selected.Contains);
+            return selected;
+        }).ToArray();
+        return RotationMode == PlayRotationMode.BalancedRotation
+            ? PlayBalancedRotation.Courts(groups, (i, players) => PlayTeamPairing.Recommend(Id, players, _matches, seeds[i]))
+            : groups;
+    }
+
+    private Guid OpeningCourtId(int court) => new(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes($"{Id:N}:opening:{court}"))[..16]);
+
+    private PlayRoundPlan OpeningRound()
+    {
+        var eligible = FutureEligiblePlayers();
+        var count = (int)Math.Min(NumberOfCourts, (eligible.Count + 3L) / 4);
+        var saved = NextRoundJson is null ? null : JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson);
+        if (saved is null)
+        {
+            // Keep the existing opening Fair Rotation seed on every court.
+            var groups = RecommendRound(eligible, Enumerable.Repeat(Id, count).ToArray());
+            return new(false, groups.Select((g, i) => new PlayPlannedCourt(OpeningCourtId(i + 1), i + 1,
+                g.Select(p => p.Id).ToArray())).ToArray());
+        }
+
+        // Keep valid manual slots, repairing only unavailable assignments and newly opened slots.
+        var valid = eligible.Select(p => p.Id).ToHashSet();
+        var used = new HashSet<Guid>();
+        var slots = Enumerable.Range(1, count).Select(court =>
+        {
+            var previous = saved.Courts.SingleOrDefault(c => c.CourtNumber == court);
+            return Enumerable.Range(0, 4).Select(i => previous is not null && i < previous.PlayerIds.Length &&
+                valid.Contains(previous.PlayerIds[i]) && used.Add(previous.PlayerIds[i]) ? previous.PlayerIds[i] : Guid.Empty).ToArray();
+        }).ToArray();
+        var available = eligible.Where(p => !used.Contains(p.Id)).ToList();
+        foreach (var court in slots)
+        {
+            var replacements = new Queue<Guid>(Recommend(available, Id).Select(p => p.Id));
+            for (var i = 0; i < court.Length; i++)
+            {
+                if (court[i] != Guid.Empty || replacements.Count == 0) continue;
+                court[i] = replacements.Dequeue();
+                available.RemoveAll(p => p.Id == court[i]);
+            }
+        }
+        return new(false, slots.Select((ids, i) => new PlayPlannedCourt(OpeningCourtId(i + 1), i + 1,
+            ids.Where(id => id != Guid.Empty).ToArray())).Where(c => c.PlayerIds.Length > 0).ToArray());
     }
 
     // A cross-court future assignment can depend on several completed holds. Promote only

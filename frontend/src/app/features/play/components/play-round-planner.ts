@@ -10,6 +10,7 @@ import { PlayNextRound, PlayPlannerAction } from '../data-access/play.models';
 export class PlayRoundPlanner {
   readonly plan = input.required<PlayNextRound>();
   readonly disabled = input(false);
+  readonly opening = input(false);
   readonly action = output<PlayPlannerAction>();
   protected readonly available = computed(() => {
     const assigned = new Set(this.plan().courts.flatMap((c) => c.players.map((p) => p.playerId)));

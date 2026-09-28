@@ -28,10 +28,11 @@ public sealed class PlayRotationPresetTests
             Edit(session, mode);
             Assert.Equal(mode, session.RotationMode);
         }
+        var lastMode = session.RotationMode;
         Edit(session, null);
-        Assert.Equal(PlayRotationMode.SplitTeams, session.RotationMode);
+        Assert.Equal(lastMode, session.RotationMode);
         Assert.Throws<ArgumentException>(() => Edit(session, (PlayRotationMode)99));
-        Assert.Equal(PlayRotationMode.SplitTeams, session.RotationMode);
+        Assert.Equal(lastMode, session.RotationMode);
         session.Start(Now);
         session.StartReadyGames();
         Assert.Throws<PlayConflictException>(() => Edit(session, PlayRotationMode.FairRotation));
@@ -59,7 +60,9 @@ public sealed class PlayRotationPresetTests
         Assert.Equal(retained.Order(), next.Take(2).Order());
         Assert.All(next.Skip(2), id => Assert.Contains(session.WaitingQueue, p => p.Id == id && p.AdjustedGamesStarted == 0));
         Assert.Equal(next, Next(session, match));
-        Assert.Equal(next.Skip(2).Order(), session.RotationPreview().Next.Select(p => p.Id).Order());
+        // Queue previews the complete future lineup, including retained players still Playing.
+        Assert.Equal(next.Order(), session.RotationPreview().Next.Select(p => p.Id).Order());
+        Assert.All(retained, id => Assert.Equal(PlayPlayerState.Playing, session.Players.Single(p => p.Id == id).State));
         Assert.Equal(2, session.RotationPreview().Held);
         var history = Ids(match);
         session.StartNextGame(match.Id, next, false, Now);
@@ -191,7 +194,8 @@ public sealed class PlayRotationPresetTests
         session.FinishGame(first.Id, Now, PlayTeam.A);
         Assert.All(Ids(second), id => Assert.DoesNotContain(id, Next(session, first)));
         session.FinishGame(second.Id, Now.AddSeconds(1), PlayTeam.B);
-        Assert.Equal(1, session.RotationPreview().Court);
+        Assert.Null(session.RotationPreview().Court); // The planner now covers both courts.
+        Assert.Equal(8, session.RotationPreview().Next.Select(p => p.Id).Distinct().Count());
         var stale = Next(session, second);
         session.StartNextGame(first.Id, Next(session, first), false, Now.AddSeconds(1));
         session.StartReadyGames();
@@ -210,13 +214,14 @@ public sealed class PlayRotationPresetTests
     public void Small_rosters_do_not_invent_players_and_manual_override_stays_available(PlayRotationMode mode, int count)
     {
         var session = Session(mode, count);
+        Assert.Equal(Math.Max(0, 4 - count), session.RotationPreview().Needed);
         session.Start(Now);
         session.StartReadyGames();
         if (count < 4)
         {
             Assert.Empty(session.Matches);
             Assert.Empty(session.RotationPreview().Next);
-            Assert.Equal(1, session.RotationPreview().Needed);
+            Assert.Empty(session.NextRound().Courts); // No current court to plan yet.
             return;
         }
         var match = Court(session);

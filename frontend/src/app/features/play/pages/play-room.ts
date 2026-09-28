@@ -20,7 +20,7 @@ import { PlayPlayerList, PlayerStateChange } from '../components/play-player-lis
 import { PlaySessionHeader } from '../components/play-session-header';
 import { PlayCourts } from '../components/play-courts';
 import { PlayRoundPlanner } from '../components/play-round-planner';
-import { PlayPlannerAction } from '../data-access/play.models';
+import { PlayPlannerAction, PlaySkillLevel } from '../data-access/play.models';
 import { ReadyLineupAction } from '../components/play-next-game';
 import { PlayMatchSummary } from '../components/play-match-summary';
 import { PlayInsights } from '../components/play-insights';
@@ -347,6 +347,15 @@ export class PlayRoom {
       'Player name updated.',
     );
   }
+  protected setSkill(intent: { playerId: string; skillLevel: PlaySkillLevel | null }) {
+    const session = this.session();
+    if (!session || session.status === 'Ended' || !session.nextRound) return;
+    this.change(
+      'skill:' + intent.playerId,
+      this.api.setSkill(this.code, intent.playerId, intent.skillLevel, session.nextRound.revision),
+      'Skill level updated.',
+    );
+  }
   protected removeGuest(playerId: string) {
     if (this.session()?.status === 'Ended') return;
     this.change(
@@ -380,7 +389,7 @@ export class PlayRoom {
     );
   }
   protected planRound(intent: PlayPlannerAction) {
-    if (this.session()?.status !== 'Active') return;
+    if (this.session()?.status === 'Ended') return;
     const { action, ...input } = intent;
     const operation =
       action === 'edit'
@@ -389,7 +398,11 @@ export class PlayRoom {
     this.change(
       'next-round',
       operation,
-      action === 'finalize' ? 'Next round finalized.' : 'Next round updated.',
+      this.session()?.status === 'Draft'
+        ? 'Opening round updated.'
+        : action === 'finalize'
+          ? 'Next round finalized.'
+          : 'Next round updated.',
     );
   }
   protected readyLineup(intent: ReadyLineupAction) {

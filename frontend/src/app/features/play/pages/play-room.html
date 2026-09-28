@@ -241,58 +241,65 @@
               }
             </div>
           } @else if (view() === 'queue') {
-            @if (room.status === 'Active') {
+            @if (room.status !== 'Ended') {
               @if (room.nextRound; as plan) {
                 <app-play-round-planner
                   [plan]="plan"
+                  [opening]="room.status === 'Draft'"
                   [disabled]="blocked()"
                   (action)="planRound($event)"
                 />
               }
             }
-            <section aria-labelledby="next-up-title">
-              <div class="section-title">
-                <h2 id="next-up-title">Next Up</h2>
-                @if (room.queue.courtNumber) {
-                  <span>Court {{ room.queue.courtNumber }} · projected</span>
+            @if (room.status !== 'Draft' || !room.nextRound) {
+              <section aria-labelledby="next-up-title">
+                <div class="section-title">
+                  <h2 id="next-up-title">Next Up</h2>
+                  @if (room.queue.courtNumber) {
+                    <span>Court {{ room.queue.courtNumber }} · projected</span>
+                  }
+                </div>
+                <p class="muted">
+                  {{ rotationLabel(room.rotationMode) }} projection · All proposed next-round
+                  players and current Ready lineups. Playing labels refer to the current game; green
+                  highlights the upcoming lineup.
+                </p>
+                @if (room.queue.nextUp.length) {
+                  <app-play-player-list
+                    [players]="room.queue.nextUp"
+                    [positions]="positions()"
+                    [nextUp]="nextUpIds()"
+                    [featured]="true"
+                    [managed]="false"
+                  />
                 }
-              </div>
-              <p class="muted">
-                {{ rotationLabel(room.rotationMode) }} projection · All proposed next-round players
-                and current Ready lineups. Playing labels refer to the current game; green
-                highlights the upcoming lineup.
-              </p>
-              @if (room.queue.nextUp.length) {
-                <app-play-player-list
-                  [players]="room.queue.nextUp"
-                  [positions]="positions()"
-                  [nextUp]="nextUpIds()"
-                  [featured]="true"
-                  [managed]="false"
-                />
-              }
-              @if (room.status === 'Ended') {
-                <p>This session has ended. No upcoming games.</p>
-              } @else if (room.queue.neededPlayers) {
-                <p>
-                  {{ room.queue.neededPlayers }} more eligible players needed for the next game.
-                  Players on current courts remain unavailable until next-game confirmation.
-                </p>
-              } @else if (room.queue.heldPlayers && room.nextRound) {
-                <p>
-                  {{ room.queue.heldPlayers }} proposed players are still playing or awaiting
-                  next-game confirmation.
-                </p>
-              } @else if (room.queue.heldPlayers) {
-                <p>
-                  {{ room.queue.heldPlayers }} players in the projected lineup are still held on
-                  Court {{ room.queue.courtNumber }}. Review the full lineup in Courts.
-                </p>
-              }
-            </section>
+                @if (room.status === 'Ended') {
+                  <p>This session has ended. No upcoming games.</p>
+                } @else if (room.queue.neededPlayers) {
+                  <p>
+                    {{ room.queue.neededPlayers }} more eligible players needed for the next game.
+                    Players on current courts remain unavailable until next-game confirmation.
+                  </p>
+                } @else if (room.queue.heldPlayers && room.nextRound) {
+                  <p>
+                    {{ room.queue.heldPlayers }} proposed players are still playing or awaiting
+                    next-game confirmation.
+                  </p>
+                } @else if (room.queue.heldPlayers) {
+                  <p>
+                    {{ room.queue.heldPlayers }} players in the projected lineup are still held on
+                    Court {{ room.queue.courtNumber }}. Review the full lineup in Courts.
+                  </p>
+                }
+              </section>
+            }
             <section aria-labelledby="waiting-title">
               <div class="section-title">
-                <h2 id="waiting-title">Waiting players</h2>
+                <h2 id="waiting-title">
+                  {{
+                    room.status === 'Draft' && room.nextRound ? 'Waiting next' : 'Waiting players'
+                  }}
+                </h2>
                 <span>{{ room.queue.waiting.length }} waiting</span>
               </div>
               <p class="muted">
@@ -307,6 +314,7 @@
                 [managed]="room.status === 'Draft'"
                 [readOnly]="room.status === 'Ended'"
                 (renamePlayer)="renameGuest($event)"
+                (skillChange)="setSkill($event)"
                 (removePlayer)="removeGuest($event)"
               />
               @if (!room.queue.waiting.length) {
@@ -345,6 +353,7 @@
               [draft]="room.status === 'Draft'"
               [completedPlayers]="completedPlayers()"
               (renamePlayer)="renameGuest($event)"
+              (skillChange)="setSkill($event)"
               (removePlayer)="removeGuest($event)"
             />
           }

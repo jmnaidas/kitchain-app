@@ -22,6 +22,10 @@ public sealed record CreatePlaySession
 public sealed record AddPlayGuest([Required] string DisplayName);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record EditPlaySkill([property: JsonRequired] string? SkillLevel,
+    [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ReadyPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -78,7 +82,7 @@ public sealed record PlayNextRoundDetail(long Revision, bool Finalized, IReadOnl
     IReadOnlyList<PlayPlayerDetail> EligiblePlayers);
 
 public sealed record PlayPlayerDetail(Guid Id, Guid SessionId, string DisplayName, PlayPlayerIdentityType IdentityType,
-    PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder);
+    PlayPlayerState State, DateTimeOffset JoinedAt, DateTimeOffset UpdatedAt, long? QueueOrder, PlaySkillLevel? SkillLevel = null);
 
 public sealed record PlayMatchPlayerDetail(Guid PlayerId, string DisplayName, PlayTeam Team, int Position);
 public sealed record PlayQueueDetail(IReadOnlyList<PlayPlayerDetail> NextUp,
@@ -157,6 +161,19 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> RenameGuestAsync(string code, Guid playerId, AddPlayGuest input, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.RenameGuest(playerId, input.DisplayName, Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> SetSkillLevelAsync(string code, Guid playerId, EditPlaySkill input, CancellationToken ct)
+    {
+        PlaySkillLevel? level = null;
+        if (input.SkillLevel is not null)
+        {
+            if (!Enum.GetNames<PlaySkillLevel>().Contains(input.SkillLevel, StringComparer.Ordinal))
+                throw new ArgumentException("Choose a supported skill level or leave it unset.", "skillLevel");
+            level = Enum.Parse<PlaySkillLevel>(input.SkillLevel);
+        }
+        return UpdateAsync(code, s => s.SetSkillLevel(playerId, level,
+            input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+    }
+
     public Task<PlaySessionDetail?> RemoveGuestAsync(string code, Guid playerId, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.RemoveGuest(playerId, Now(s)), cancellationToken);
 
@@ -227,7 +244,7 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     }
 
     private static PlayPlayerDetail Player(PlaySessionPlayer player) => new(player.Id, player.SessionId,
-        player.DisplayName, player.IdentityType, player.State, player.JoinedAt, player.UpdatedAt, player.QueueOrder);
+        player.DisplayName, player.IdentityType, player.State, player.JoinedAt, player.UpdatedAt, player.QueueOrder, player.SkillLevel);
 
     private static PlaySessionDetail Detail(PlaySession session)
     {

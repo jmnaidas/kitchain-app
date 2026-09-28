@@ -74,3 +74,8 @@ optgroup {
 option {
   font-weight: 400;
 }
+
+.opening > section {
+  border-left: 3px solid var(--forest);
+  background: var(--sage-light, #edf3eb);
+}

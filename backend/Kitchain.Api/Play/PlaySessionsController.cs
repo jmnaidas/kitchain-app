@@ -85,6 +85,11 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> RenameGuest(string code, Guid playerId, AddPlayGuest input, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.RenameGuestAsync(code, playerId, input, cancellationToken));
 
+    [HttpPatch("{code}/players/{playerId:guid}/skill")]
+    [RequestSizeLimit(2048)]
+    public Task<ActionResult<PlaySessionDetail>> SetSkillLevel(string code, Guid playerId, EditPlaySkill input, CancellationToken ct) =>
+        SessionResult(() => sessions.SetSkillLevelAsync(code, playerId, input, ct));
+
     [HttpDelete("{code}/players/{playerId:guid}")]
     public Task<ActionResult<PlaySessionDetail>> RemoveGuest(string code, Guid playerId, CancellationToken cancellationToken) =>
         SessionResult(() => sessions.RemoveGuestAsync(code, playerId, cancellationToken));
