@@ -165,7 +165,7 @@ public sealed partial class PlaySession
         if (!_matches.Any(m => m.Id == matchId && m.IsCurrent && m.Status == PlayMatchStatus.Completed))
             throw new PlayConflictException("This court is no longer awaiting a next game.");
         var plan = NextRound();
-        var planned = plan.Finalized ? plan.Courts.SingleOrDefault(c => c.MatchId == matchId) : null;
+        var planned = plan.Courts.SingleOrDefault(c => c.MatchId == matchId && c.Finalized == true);
         if (planned is not null)
             return PlanDependencies(plan, matchId).Length == 0 ? [] : planned.PlayerIds.Select(FindPlayer).ToArray();
         return Recommend(EligibleNextPlayers(matchId), matchId);
@@ -179,9 +179,10 @@ public sealed partial class PlaySession
         var returning = match.Players.Select(p => p.PlayerId).ToHashSet();
         var elsewhere = _matches.Where(m => m.IsCurrent && m.Id != matchId)
             .SelectMany(m => m.Players).Select(p => p.PlayerId).ToHashSet();
+        var plannedElsewhere = SavedActiveCourts().Where(c => c.MatchId != matchId).SelectMany(c => c.PlayerIds).ToHashSet();
         return WaitingQueue.Concat(_players.Where(p => p.State == PlayPlayerState.Playing && returning.Contains(p.Id))
                 .OrderBy(p => p.JoinedAt).ThenBy(p => p.Id))
-            .Where(p => !p.IsRemoved && !elsewhere.Contains(p.Id)).ToArray();
+            .Where(p => !p.IsRemoved && !elsewhere.Contains(p.Id) && !plannedElsewhere.Contains(p.Id)).ToArray();
     }
 
     public void StartNextGame(Guid matchId, IReadOnlyList<Guid> playerIds, bool overrideLineup, DateTimeOffset now)
@@ -191,7 +192,7 @@ public sealed partial class PlaySession
         var match = _matches.SingleOrDefault(m => m.Id == matchId && m.IsCurrent && m.Status == PlayMatchStatus.Completed)
             ?? throw new PlayConflictException("This court is no longer awaiting a next game.");
         var plan = NextRound();
-        if (plan.Finalized && plan.Courts.Any(c => c.MatchId == matchId))
+        if (plan.Courts.Any(c => c.MatchId == matchId && c.Finalized == true))
         {
             PromotePlan(plan, matchId, playerIds, now);
             return;

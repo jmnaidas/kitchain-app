@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Kitchain.Domain.Play;
 
-public sealed record PlayPlannedCourt(Guid MatchId, int CourtNumber, Guid[] PlayerIds);
+public sealed record PlayPlannedCourt(Guid MatchId, int CourtNumber, Guid[] PlayerIds, bool? Finalized = null);
 public sealed record PlayRoundPlan(bool Finalized, PlayPlannedCourt[] Courts);
 
 public sealed partial class PlaySession
@@ -20,8 +20,7 @@ public sealed partial class PlaySession
             NextRoundJson = JsonSerializer.Serialize(OpeningRound());
             return;
         }
-        if (NextRoundJson is not null && !ValidPlan(JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson)!, FutureEligiblePlayers()))
-            NextRoundJson = null;
+        if (NextRoundJson is not null) SaveCourts(SavedActiveCourts());
     }
 
     public IReadOnlyList<PlaySessionPlayer> FutureEligiblePlayers()
@@ -36,28 +35,40 @@ public sealed partial class PlaySession
     {
         if (Status == PlaySessionStatus.Draft) return OpeningRound();
         if (Status != PlaySessionStatus.Active) return new(false, []);
-        var saved = NextRoundJson is null ? null : JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson);
-        var eligible = FutureEligiblePlayers();
-        if (saved is not null && ValidPlan(saved, eligible))
-            return saved;
-
-        var anchors = _matches.Where(m => m.IsCurrent && m.Status != PlayMatchStatus.Ready)
-            .OrderBy(m => m.CourtNumber).Take(eligible.Count / 4).ToArray();
+        var saved = SavedActiveCourts();
+        var assigned = saved.SelectMany(c => c.PlayerIds).ToHashSet();
+        var eligible = FutureEligiblePlayers().Where(p => !assigned.Contains(p.Id)).ToArray();
+        var anchors = _matches.Where(m => m.IsCurrent && m.Status != PlayMatchStatus.Ready && !saved.Any(c => c.MatchId == m.Id))
+            .OrderBy(m => m.CourtNumber).Take(eligible.Length / 4).ToArray();
         var groups = RecommendRound(eligible, anchors.Select(m => m.Id).ToArray());
-        return new(false, anchors.Select((m, i) => new PlayPlannedCourt(m.Id, m.CourtNumber,
-            groups[i].Select(p => p.Id).ToArray())).ToArray());
+        var courts = saved.Concat(anchors.Select((m, i) => new PlayPlannedCourt(m.Id, m.CourtNumber,
+            groups[i].Select(p => p.Id).ToArray(), false))).OrderBy(c => c.CourtNumber).ToArray();
+        return new(courts.Length > 0 && courts.All(c => c.Finalized == true), courts);
     }
 
-    private bool ValidPlan(PlayRoundPlan plan, IReadOnlyList<PlaySessionPlayer> eligible)
+    private PlayPlannedCourt[] SavedActiveCourts()
     {
-        var ids = eligible.Select(p => p.Id).ToHashSet();
-        return Status == PlaySessionStatus.Active && plan.Courts.Length > 0 &&
-            plan.Courts.Select(c => c.MatchId).Distinct().Count() == plan.Courts.Length &&
-            plan.Courts.All(c => c.PlayerIds.Length == 4 && _matches.Any(m => m.Id == c.MatchId &&
-                m.CourtNumber == c.CourtNumber && m.IsCurrent && m.Status != PlayMatchStatus.Ready)) &&
-            plan.Courts.SelectMany(c => c.PlayerIds).All(ids.Contains) &&
-            plan.Courts.SelectMany(c => c.PlayerIds).Distinct().Count() == plan.Courts.Length * 4;
+        if (Status != PlaySessionStatus.Active || NextRoundJson is null) return [];
+        var saved = JsonSerializer.Deserialize<PlayRoundPlan>(NextRoundJson)!;
+        var eligible = _players.Where(p => !p.IsRemoved && p.State != PlayPlayerState.Resting).Select(p => p.Id).ToHashSet();
+        var used = new HashSet<Guid>();
+        var anchors = new HashSet<Guid>();
+        var valid = new List<PlayPlannedCourt>();
+        foreach (var court in saved.Courts)
+        {
+            if (court.PlayerIds.Length != 4 || court.PlayerIds.Distinct().Count() != 4 ||
+                court.PlayerIds.Any(id => !eligible.Contains(id) || used.Contains(id)) || anchors.Contains(court.MatchId) ||
+                !_matches.Any(m => m.Id == court.MatchId && m.CourtNumber == court.CourtNumber && m.IsCurrent && m.Status != PlayMatchStatus.Ready)) continue;
+            // Legacy JSON has one batch flag; preserve its intent when first read or written.
+            valid.Add(court with { Finalized = court.Finalized ?? saved.Finalized });
+            anchors.Add(court.MatchId);
+            used.UnionWith(court.PlayerIds);
+        }
+        return valid.ToArray();
     }
+
+    private void SaveCourts(PlayPlannedCourt[] courts) => NextRoundJson = courts.Length == 0 ? null :
+        JsonSerializer.Serialize(new PlayRoundPlan(courts.All(c => c.Finalized == true), courts));
 
     public void EditNextRound(Guid matchId, int position, Guid playerId, long expectedRevision, DateTimeOffset now)
     {
@@ -74,25 +85,36 @@ public sealed partial class PlaySession
         if (other is not null)
             other.PlayerIds[Array.IndexOf(other.PlayerIds, playerId)] = court.PlayerIds[position - 1];
         court.PlayerIds[position - 1] = playerId;
-        NextRoundJson = JsonSerializer.Serialize(plan with { Finalized = false });
+        var changed = plan.Courts.Select(c => c.MatchId == matchId || c.MatchId == other?.MatchId
+            ? c with { Finalized = false } : c).ToArray();
+        SaveCourts(changed);
         Touch(now);
     }
 
-    public void FinalizeNextRound(long expectedRevision, DateTimeOffset now)
+    public void FinalizeNextRound(long expectedRevision, DateTimeOffset now, Guid? matchId = null)
     {
         CheckPlan(expectedRevision, now);
         if (Status != PlaySessionStatus.Active)
             throw new PlayConflictException("Start Session confirms the opening round.");
         var plan = NextRound();
         if (plan.Courts.Length == 0) throw new PlayConflictException("Start a game before planning the next round.");
-        NextRoundJson = JsonSerializer.Serialize(plan with { Finalized = true });
+        if (matchId.HasValue && !plan.Courts.Any(c => c.MatchId == matchId))
+            throw new PlayConflictException("That court plan changed. Refresh the session.");
+        SaveCourts(plan.Courts.Select(c => !matchId.HasValue || c.MatchId == matchId ? c with { Finalized = true } : c).ToArray());
         Touch(now);
     }
 
-    public void ResetNextRound(long expectedRevision, DateTimeOffset now)
+    public void ResetNextRound(long expectedRevision, DateTimeOffset now, Guid? matchId = null)
     {
         CheckPlan(expectedRevision, now);
-        NextRoundJson = null;
+        if (matchId.HasValue && Status == PlaySessionStatus.Active)
+        {
+            var plan = NextRound();
+            if (!plan.Courts.Any(c => c.MatchId == matchId))
+                throw new PlayConflictException("That court plan changed. Refresh the session.");
+            SaveCourts(plan.Courts.Where(c => c.MatchId != matchId).ToArray());
+        }
+        else NextRoundJson = null;
         Touch(now);
     }
 
@@ -178,7 +200,7 @@ public sealed partial class PlaySession
                 var holder = _matches.SingleOrDefault(m => m.IsCurrent && m.Players.Any(p => p.PlayerId == id));
                 if (holder is null || result.Any(c => c.MatchId == holder.Id)) continue;
                 var dependency = plan.Courts.SingleOrDefault(c => c.MatchId == holder.Id);
-                if (dependency is null || holder.Status != PlayMatchStatus.Completed) return [];
+                if (dependency?.Finalized != true || holder.Status != PlayMatchStatus.Completed) return [];
                 result.Add(dependency);
             }
         }
@@ -206,7 +228,7 @@ public sealed partial class PlaySession
             _matches.Add(ready);
         }
         var remaining = plan.Courts.Where(c => !courts.Contains(c)).ToArray();
-        NextRoundJson = remaining.Length == 0 ? null : JsonSerializer.Serialize(plan with { Courts = remaining });
+        SaveCourts(remaining);
         Touch(now);
     }
 }

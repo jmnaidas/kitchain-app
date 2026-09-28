@@ -106,7 +106,9 @@ public sealed class PlayNextRoundTests
         Assert.DoesNotContain(id, s.NextRound().Courts.SelectMany(c => c.PlayerIds));
         Assert.Throws<PlayConflictException>(() => s.FinalizeNextRound(stale, Now));
         Assert.Throws<PlayConflictException>(() => s.EditNextRound(plan.Courts[0].MatchId, 1, id, s.NextRoundRevision, Now));
-        Assert.Null(s.NextRoundJson);
+        Assert.NotNull(s.NextRoundJson);
+        Assert.All(s.NextRound().Courts.Where(c => !plan.Courts.Single(p => p.MatchId == c.MatchId).PlayerIds.Contains(id)),
+            c => Assert.True(c.Finalized));
         s.Rejoin(id, Now);
         Assert.False(s.NextRound().Finalized);
         s.End(Now);

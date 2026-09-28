@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { PlayNextRound, PlayPlannerAction, lineupPlayerLabel } from '../data-access/play.models';
+import {
+  PlayNextRound,
+  PlayPlannerAction,
+  PlayPlayer,
+  lineupPlayerLabel,
+} from '../data-access/play.models';
 
 @Component({
   selector: 'app-play-round-planner',
@@ -9,11 +14,13 @@ import { PlayNextRound, PlayPlannerAction, lineupPlayerLabel } from '../data-acc
 })
 export class PlayRoundPlanner {
   readonly plan = input.required<PlayNextRound>();
+  readonly players = input<PlayPlayer[]>([]);
   readonly disabled = input(false);
   readonly opening = input(false);
   readonly action = output<PlayPlannerAction>();
   private readonly skills = computed(
-    () => new Map(this.plan().eligiblePlayers.map((p) => [p.id, p.skillLevel])),
+    () =>
+      new Map([...this.plan().eligiblePlayers, ...this.players()].map((p) => [p.id, p.skillLevel])),
   );
   protected playerLabel(id: string, name: string) {
     return lineupPlayerLabel(name, this.skills().get(id));
@@ -37,7 +44,12 @@ export class PlayRoundPlanner {
       expectedRevision: this.plan().revision,
     });
   }
-  protected emit(action: 'finalize' | 'reset') {
-    if (!this.disabled()) this.action.emit({ action, expectedRevision: this.plan().revision });
+  protected emit(action: 'finalize' | 'reset', matchId?: string) {
+    if (!this.disabled())
+      this.action.emit({
+        action,
+        expectedRevision: this.plan().revision,
+        ...(matchId ? { matchId } : {}),
+      });
   }
 }

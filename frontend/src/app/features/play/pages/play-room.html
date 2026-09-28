@@ -254,6 +254,7 @@
               @if (room.nextRound; as plan) {
                 <app-play-round-planner
                   [plan]="plan"
+                  [players]="room.players"
                   [opening]="room.status === 'Draft'"
                   [disabled]="blocked()"
                   (action)="planRound($event)"

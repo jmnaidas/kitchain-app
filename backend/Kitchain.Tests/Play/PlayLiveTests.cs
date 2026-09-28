@@ -146,8 +146,8 @@ public sealed class PlayLiveTests
         var court = store.Session.NextRound().Courts.Single();
         await controller.EditNextRound("ABCDEF", new EditPlayNextRound(court.MatchId, 1, court.PlayerIds[2], store.Session.NextRoundRevision), default);
         var revision = store.Session.NextRoundRevision;
-        await controller.FinalizeNextRound("ABCDEF", new ReadyPlayGame(revision), default);
-        await controller.ResetNextRound("ABCDEF", new ReadyPlayGame(revision), default);
+        await controller.FinalizeNextRound("ABCDEF", new PlanPlayGame(revision, court.MatchId), default);
+        await controller.ResetNextRound("ABCDEF", new PlanPlayGame(revision, court.MatchId), default);
         Assert.Equal(2, notifier.Codes.Count);
         Assert.True(store.Session.NextRound().Finalized);
     }

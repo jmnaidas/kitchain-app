@@ -39,7 +39,8 @@ public sealed class PlayNextRoundApiTests(PostgresCourtFixture fixture) : IClass
         (await fixture.Client.PostAsJsonAsync(url + "/next-round/finalize", new { expectedRevision = edited.NextRound.Revision })).EnsureSuccessStatusCode();
         var finalized = await Read(url);
         Assert.True(finalized.NextRound!.Finalized);
-        Assert.Equal(JsonSerializer.Serialize(edited.NextRound.Courts, Json), JsonSerializer.Serialize(finalized.NextRound.Courts, Json));
+        Assert.Equal(JsonSerializer.Serialize(edited.NextRound.Courts.Select(c => c with { Finalized = true }), Json),
+            JsonSerializer.Serialize(finalized.NextRound.Courts, Json));
         (await fixture.Client.PostAsync($"{url}/matches/{a.MatchId}/finish", null)).EnsureSuccessStatusCode();
         var ids = finalized.NextRound.Courts[0].Players.Select(p => p.PlayerId).ToArray();
         (await fixture.Client.PostAsJsonAsync($"{url}/matches/{a.MatchId}/next", new { playerIds = ids, overrideLineup = false })).EnsureSuccessStatusCode();

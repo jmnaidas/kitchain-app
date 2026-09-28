@@ -396,15 +396,15 @@ export class PlayRoom {
     const operation =
       action === 'edit'
         ? this.api.editNextRound(this.code, input)
-        : this.api.nextRoundAction(this.code, action, intent.expectedRevision);
+        : this.api.nextRoundAction(this.code, action, intent.expectedRevision, intent.matchId);
     this.change(
       'next-round',
       operation,
       this.session()?.status === 'Draft'
         ? 'Opening round updated.'
         : action === 'finalize'
-          ? 'Next round finalized.'
-          : 'Next round updated.',
+          ? 'Court lineup finalized.'
+          : 'Court lineup updated.',
     );
   }
   protected readyLineup(intent: ReadyLineupAction) {

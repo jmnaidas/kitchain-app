@@ -111,9 +111,15 @@ export class PlayApi {
   ) {
     return this.http.patch<PlaySession>(this.url(code) + '/next-round', input);
   }
-  nextRoundAction(code: string, action: 'finalize' | 'reset', expectedRevision: number) {
+  nextRoundAction(
+    code: string,
+    action: 'finalize' | 'reset',
+    expectedRevision: number,
+    matchId?: string,
+  ) {
     return this.http.post<PlaySession>(this.url(code) + '/next-round/' + action, {
       expectedRevision,
+      ...(matchId ? { matchId } : {}),
     });
   }
   changeLineup(

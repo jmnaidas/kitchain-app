@@ -29,6 +29,9 @@ public sealed record EditPlaySkill([property: JsonRequired] string? SkillLevel,
 public sealed record ReadyPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record PlanPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision, Guid? MatchId = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ChangePlayLineupSlot([Required, Range(1, 4)] int? Position,
     [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision,
     Guid? OtherMatchId = null, [Range(0, long.MaxValue)] long? OtherExpectedRevision = null);
@@ -77,7 +80,8 @@ public sealed record CorrectPlayScore
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record EditPlayNextRound([Required] Guid? MatchId, [Required, Range(1, 4)] int? Position,
     [Required] Guid? PlayerId, [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
-public sealed record PlayPlannedCourtDetail(Guid MatchId, int CourtNumber, IReadOnlyList<PlayMatchPlayerDetail> Players);
+public sealed record PlayPlannedCourtDetail(Guid MatchId, int CourtNumber, IReadOnlyList<PlayMatchPlayerDetail> Players,
+    bool Finalized = false, PlayMatchStatus? CurrentStatus = null, IReadOnlyList<int>? WaitingForCourts = null);
 public sealed record PlayNextRoundDetail(long Revision, bool Finalized, IReadOnlyList<PlayPlannedCourtDetail> Courts,
     IReadOnlyList<PlayPlayerDetail> EligiblePlayers);
 
@@ -225,11 +229,11 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
             input.PlayerId ?? throw new ArgumentException("Player is required."),
             input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
 
-    public Task<PlaySessionDetail?> FinalizeNextRoundAsync(string code, ReadyPlayGame input, CancellationToken ct) =>
-        UpdateAsync(code, s => s.FinalizeNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+    public Task<PlaySessionDetail?> FinalizeNextRoundAsync(string code, PlanPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.FinalizeNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s), input.MatchId), ct);
 
-    public Task<PlaySessionDetail?> ResetNextRoundAsync(string code, ReadyPlayGame input, CancellationToken ct) =>
-        UpdateAsync(code, s => s.ResetNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s)), ct);
+    public Task<PlaySessionDetail?> ResetNextRoundAsync(string code, PlanPlayGame input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.ResetNextRound(input.ExpectedRevision ?? throw new ArgumentException("Revision is required."), Now(s), input.MatchId), ct);
 
     private async Task<PlaySessionDetail?> UpdateAsync(string code, Action<PlaySession> update, CancellationToken cancellationToken)
     {
@@ -278,10 +282,14 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
         var preview = session.RotationPreview();
         var plan = session.NextRound();
         var future = session.FutureEligiblePlayers().ToDictionary(p => p.Id);
+        var roster = session.Players.ToDictionary(p => p.Id);
         var nextRound = new PlayNextRoundDetail(session.NextRoundRevision, plan.Finalized,
             plan.Courts.Select(c => new PlayPlannedCourtDetail(c.MatchId, c.CourtNumber,
-                c.PlayerIds.Select((id, i) => new PlayMatchPlayerDetail(id, future[id].DisplayName,
-                    i < 2 ? PlayTeam.A : PlayTeam.B, i + 1)).ToArray())).ToArray(),
+                c.PlayerIds.Select((id, i) => new PlayMatchPlayerDetail(id, roster[id].DisplayName,
+                    i < 2 ? PlayTeam.A : PlayTeam.B, i + 1)).ToArray(), c.Finalized ?? false,
+                session.Matches.SingleOrDefault(m => m.Id == c.MatchId)?.Status,
+                session.Matches.Where(m => m.IsCurrent && m.Id != c.MatchId && m.Players.Any(p => c.PlayerIds.Contains(p.PlayerId)))
+                    .Select(m => m.CourtNumber).Order().ToArray())).ToArray(),
             future.Values.Select(Player).ToArray());
         return new(session.Id, session.JoinCode, session.Name, session.SessionDate, session.StartTime, session.EndTime,
             session.NumberOfCourts, session.MaximumPlayers, session.Status, session.RotationMode, session.ScoringMode,

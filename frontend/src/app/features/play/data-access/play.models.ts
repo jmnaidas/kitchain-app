@@ -140,7 +140,14 @@ export interface PlayPlayer {
 export interface PlayNextRound {
   revision: number;
   finalized: boolean;
-  courts: { matchId: string; courtNumber: number; players: PlayMatch['players'] }[];
+  courts: {
+    matchId: string;
+    courtNumber: number;
+    players: PlayMatch['players'];
+    finalized?: boolean;
+    currentStatus?: PlayMatch['status'] | null;
+    waitingForCourts?: number[];
+  }[];
   eligiblePlayers: PlayPlayer[];
 }
 export interface PlayPlannerAction {

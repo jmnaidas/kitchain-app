@@ -1,23 +1,16 @@
 <section
-  [attr.aria-label]="opening() ? 'Opening round planner' : 'Next round planner'"
+  [attr.aria-label]="opening() ? 'Opening round planner' : 'Next games planner'"
   [class.opening]="opening()"
   [attr.aria-busy]="disabled()"
 >
-  <h2>{{ opening() ? 'Opening Round · Next Up' : 'Next round' }}</h2>
+  <h2>{{ opening() ? 'Opening Round · Next Up' : 'Next Games' }}</h2>
   @if (plan().courts.length) {
-    <p role="status">
-      {{
-        opening()
-          ? 'Saved as you arrange · Start Session confirms these lineups'
-          : plan().finalized
-            ? 'Finalized · saved for the next games'
-            : 'Draft · finalize when the lineups are ready'
-      }}
-    </p>
-    @if (!opening()) {
+    @if (opening()) {
+      <p role="status">Saved as you arrange · Start Session confirms these lineups</p>
+    } @else {
       <p class="help">
-        These are future games. Players may still be playing now. Editing a finalized plan makes it
-        a draft again.
+        Plan each court independently. Editing a lineup makes only that court draft again; a
+        cross-court swap updates both involved courts.
       </p>
     }
     @for (court of plan().courts; track court.matchId) {
@@ -27,6 +20,27 @@
         "
       >
         <h3>Court {{ court.courtNumber }}</h3>
+        @if (!opening()) {
+          <p>
+            Current:
+            {{
+              court.currentStatus === 'Completed'
+                ? 'Completed'
+                : court.currentStatus === 'Ready'
+                  ? 'Ready'
+                  : 'Playing'
+            }}
+          </p>
+          <p role="status">
+            Next lineup: {{ (court.finalized ?? plan().finalized) ? 'Finalized' : 'Draft' }}
+          </p>
+          @if (court.waitingForCourts?.length) {
+            <p class="help">
+              Players still held on Court {{ court.waitingForCourts!.join(', ') }}. This lineup
+              waits until they are available; other courts can continue.
+            </p>
+          }
+        }
         @if (court.players.length < 4) {
           <p class="help">{{ 4 - court.players.length }} more players needed for this court.</p>
         }
@@ -89,27 +103,32 @@
             </div>
           }
         </div>
+        @if (!opening()) {
+          <div class="actions">
+            <button type="button" [disabled]="disabled()" (click)="emit('reset', court.matchId)">
+              Reset Court {{ court.courtNumber }}
+            </button>
+            <button
+              type="button"
+              class="primary"
+              [disabled]="disabled() || (court.finalized ?? plan().finalized)"
+              (click)="emit('finalize', court.matchId)"
+            >
+              Finalize Court {{ court.courtNumber }}
+            </button>
+          </div>
+        }
       </section>
     }
-    <div class="actions">
+    @if (opening()) {
       <button type="button" [disabled]="disabled()" (click)="emit('reset')">
-        {{ opening() ? 'Reset Opening Round' : 'Reset Next Round' }}
+        Reset Opening Round
       </button>
-      @if (!opening()) {
-        <button
-          type="button"
-          class="primary"
-          [disabled]="disabled() || plan().finalized"
-          (click)="emit('finalize')"
-        >
-          Finalize Next Round
-        </button>
-      }
-    </div>
-    @if (!opening()) {
+    } @else {
       <p class="help">
-        Proceed in Courts after the current games finish. Cross-court plans wait for the courts they
-        depend on; those courts become Ready together. Ready remains your final checkpoint.
+        After a court finishes, Proceed in Courts to prepare its next Ready lineup. Only
+        shared-player dependencies wait; finalized, completed courts with circular dependencies
+        become Ready together.
       </p>
     }
   } @else if (opening()) {
