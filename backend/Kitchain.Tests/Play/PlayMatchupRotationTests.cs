@@ -35,6 +35,47 @@ public sealed class PlayMatchupRotationTests
     private static bool Partners(PlaySessionPlayer[] lineup, PlaySessionPlayer a, PlaySessionPlayer b) =>
         Array.IndexOf(lineup, a) / 2 == Array.IndexOf(lineup, b) / 2;
 
+    private static PlaySessionPlayer[] Group(PlaySession s, PlaySessionPlayer[] pool, PlayMatch[] history) =>
+        (PlaySessionPlayer[])typeof(PlaySession).Assembly.GetType("Kitchain.Domain.Play.PlayFairRotation")!
+            .GetMethod("Select")!.Invoke(null, [pool, history, s.Id, 4])!;
+
+    [Fact]
+    public void Fresh_group_prefers_one_of_four_over_three_or_four_regardless_of_teams()
+    {
+        var s = Session(); var p = s.Players.ToArray();
+        var history = new[] { Match(s, PlayMatchStatus.Completed, p.Take(4).ToArray()),
+            Match(s, PlayMatchStatus.Completed, p[0], p[2], p[1], p[3]) };
+        var pool = p.Take(7).ToArray(); // Four previous courtmates and three fresh players.
+        var chosen = Group(s, pool, history);
+        Assert.Single(chosen, player => p.Take(4).Contains(player));
+        Assert.All(p.Skip(4).Take(3), player => Assert.Contains(player, chosen));
+        Assert.Equal(chosen, Group(s, pool, history));
+        foreach (var player in pool) s.SetSkillLevel(player.Id, PlaySkillLevel.Advanced, s.NextRoundRevision, Now);
+        Assert.Equal(chosen, Group(s, pool, history));
+    }
+
+    [Fact]
+    public void Shared_court_counts_are_lifetime_not_just_recent_three_games()
+    {
+        var s = Session(12); var p = s.Players.ToArray();
+        var history = new List<PlayMatch> { Match(s, PlayMatchStatus.Completed, p[0], p[1], p[2], p[3]) };
+        // Each old courtmate's last three matches are now with outsiders.
+        for (var i = 0; i < 4; i++)
+            for (var n = 0; n < 3; n++) history.Add(Match(s, PlayMatchStatus.Completed, p[i], p[9], p[10], p[11]));
+        var selected = Group(s, p.Take(7).ToArray(), history.ToArray());
+        Assert.Single(selected, player => p.Take(4).Contains(player));
+    }
+
+    [Theory]
+    [InlineData(PlayMatchStatus.Ready)]
+    [InlineData(PlayMatchStatus.Active)]
+    public void Unfinished_games_do_not_affect_group_selection(PlayMatchStatus status)
+    {
+        var s = Session(); var pool = s.Players.ToArray();
+        var original = Group(s, pool, []);
+        Assert.Equal(original, Group(s, pool, [Match(s, status, original)]));
+    }
+
     [Fact]
     public void Never_teamed_then_lower_lifetime_partner_counts_take_priority()
     {

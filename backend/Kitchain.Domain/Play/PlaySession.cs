@@ -282,6 +282,13 @@ public sealed partial class PlaySession
         Touch(now);
     }
 
+    public void SetGameTimer(Guid matchId, int? minutes, long expectedRevision, DateTimeOffset now)
+    {
+        EnsureOpen(now);
+        ReadyMatch(matchId).SetTimer(minutes, expectedRevision);
+        Touch(now);
+    }
+
     public void StartGame(Guid matchId, long expectedRevision, DateTimeOffset now)
     {
         EnsureOpen(now);

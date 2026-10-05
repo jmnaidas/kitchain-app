@@ -46,6 +46,22 @@ button {
   background: var(--forest);
   color: var(--ivory);
 }
+.timer-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border: 0;
+  padding: 0;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+  legend {
+    margin-bottom: 0.35rem;
+  }
+  [aria-pressed='true'] {
+    background: var(--forest);
+    color: var(--ivory);
+  }
+}
 button:disabled {
   opacity: 0.5;
   cursor: default;

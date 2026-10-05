@@ -18,6 +18,7 @@ public sealed class PlayMatch
         SessionId = sessionId;
         CourtNumber = courtNumber;
         Status = PlayMatchStatus.Ready;
+        TimerDurationMinutes = 15;
         for (var i = 0; i < 4; i++)
             _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1, players[i].DisplayName));
     }
@@ -29,6 +30,7 @@ public sealed class PlayMatch
     public bool IsCurrent { get; private set; } = true;
     public PlayTeam? Winner { get; private set; }
     public DateTimeOffset? StartedAt { get; private set; }
+    public int? TimerDurationMinutes { get; private set; }
     public long LineupRevision { get; private set; }
     public bool IsLineupOverridden { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
@@ -57,6 +59,15 @@ public sealed class PlayMatch
         for (var i = 0; i < players.Count; i++)
             _players.Add(new PlayMatchPlayer(Id, players[i].Id, i + 1, players[i].DisplayName));
         IsLineupOverridden = overridden;
+        LineupRevision++;
+    }
+
+    internal void SetTimer(int? minutes, long expectedRevision)
+    {
+        CheckReady(expectedRevision);
+        if (minutes is not (null or 10 or 15 or 20))
+            throw new ArgumentException("Choose 10, 15, 20 minutes or No limit.");
+        TimerDurationMinutes = minutes;
         LineupRevision++;
     }
 

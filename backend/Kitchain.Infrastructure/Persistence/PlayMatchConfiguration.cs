@@ -12,6 +12,7 @@ internal sealed class PlayMatchConfiguration : IEntityTypeConfiguration<PlayMatc
         {
             table.HasCheckConstraint("CK_PlayMatches_Current", "\"Status\" NOT IN ('Active', 'Ready') OR \"IsCurrent\"");
             table.HasCheckConstraint("CK_PlayMatches_LineupRevision", "\"LineupRevision\" >= 0");
+            table.HasCheckConstraint("CK_PlayMatches_TimerDuration", "\"TimerDurationMinutes\" IS NULL OR \"TimerDurationMinutes\" IN (10, 15, 20)");
             table.HasCheckConstraint("CK_PlayMatches_Winner", "\"Winner\" IS NULL OR (\"Status\" = 'Completed' AND \"Winner\" IN ('A', 'B'))");
             table.HasCheckConstraint("CK_PlayMatches_Scores", "\"TeamAScore\" >= 0 AND \"TeamBScore\" >= 0");
             table.HasCheckConstraint("CK_PlayMatches_Service", "\"ServingTeam\" IN ('A', 'B') AND \"CurrentServerNumber\" IN (1, 2)");

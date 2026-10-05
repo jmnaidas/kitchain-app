@@ -420,12 +420,19 @@ export class PlayRoom {
             intent.otherMatchId,
             intent.otherExpectedRevision,
           )
-        : this.api.readyAction(
-            this.code,
-            intent.matchId,
-            intent.action === 'reset' ? 'lineup/reset' : 'start',
-            intent.expectedRevision,
-          );
+        : intent.action === 'timer'
+          ? this.api.setGameTimer(
+              this.code,
+              intent.matchId,
+              intent.timerDurationMinutes ?? null,
+              intent.expectedRevision,
+            )
+          : this.api.readyAction(
+              this.code,
+              intent.matchId,
+              intent.action === 'reset' ? 'lineup/reset' : 'start',
+              intent.expectedRevision,
+            );
     this.change(
       `lineup:${intent.matchId}`,
       operation,

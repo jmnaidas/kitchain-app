@@ -113,6 +113,7 @@ export interface PlayMatch {
   status: 'Ready' | 'Active' | 'Completed';
   lineupRevision?: number;
   isLineupOverridden?: boolean;
+  timerDurationMinutes?: number | null;
   completedAt: string | null;
   winner: PlayTeam | null;
   nextLineup: PlayLineupPlayer[];
@@ -214,7 +215,7 @@ export interface PlayMatchSummary {
   id: string;
   courtNumber: number;
   players: PlayLineupPlayer[];
-  startedAt: string;
+  startedAt: string | null;
   completedAt: string | null;
   teamAScore: number | null;
   teamBScore: number | null;

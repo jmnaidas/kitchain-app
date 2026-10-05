@@ -7,6 +7,8 @@ using Kitchain.Domain.Play;
 using Kitchain.Infrastructure.Play;
 using Kitchain.Tests.Courts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Kitchain.Tests.Play;
 
@@ -31,6 +33,111 @@ public sealed class PlayReadyApiTests(PostgresCourtFixture fixture) : IClassFixt
         fixture.Client.PatchAsJsonAsync($"{url}/matches/{match}/lineup", new { position, playerId = player, expectedRevision = revision });
     private Task<HttpResponseMessage> Start(string url, PlayMatchDetail match) =>
         fixture.Client.PostAsJsonAsync($"{url}/matches/{match.Id}/start", new { expectedRevision = match.LineupRevision });
+
+    [PostgresTheory]
+    [InlineData(15, 900)]
+    [InlineData(15, 763)]
+    [InlineData(15, 1041)]
+    [InlineData(null, 3852)]
+    public async Task History_preserves_actual_elapsed_timestamps_independently_of_timer(int? timer, int seconds)
+    {
+        var (url, state) = await Create(); var match = state.CurrentMatches[0];
+        (await fixture.Client.PatchAsJsonAsync($"{url}/matches/{match.Id}/timer",
+            new { timerDurationMinutes = timer, expectedRevision = match.LineupRevision })).EnsureSuccessStatusCode();
+        (await Start(url, (await Read(url)).CurrentMatches[0])).EnsureSuccessStatusCode();
+        // Finish using a controlled domain timestamp; no real-time wait or client timer.
+        await using (var db = fixture.CreateDbContext())
+            await new EfPlaySessionStore(db).UpdateAsync(state.JoinCode, s =>
+            {
+                var started = s.Matches.Single(m => m.Id == match.Id);
+                s.FinishGame(match.Id, started.StartedAt!.Value.AddSeconds(seconds));
+            }, default);
+        for (var reload = 0; reload < 2; reload++)
+        {
+            var completed = Assert.Single((await Read(url)).MatchHistory);
+            Assert.Equal(seconds, (completed.CompletedAt!.Value - completed.StartedAt!.Value).TotalSeconds);
+        }
+        await using var persisted = fixture.CreateDbContext();
+        var saved = await persisted.Set<PlayMatch>().SingleAsync(m => m.Id == match.Id);
+        Assert.Equal(timer, saved.TimerDurationMinutes);
+        Assert.Equal(seconds, (saved.CompletedAt!.Value - saved.StartedAt!.Value).TotalSeconds);
+    }
+
+    [PostgresFact]
+    public async Task Timer_migration_defaults_existing_ready_games_only_and_rejects_invalid_database_values()
+    {
+        var (url, state) = await Create();
+        Assert.Equal(HttpStatusCode.OK, (await Start(url, state.CurrentMatches[0])).StatusCode);
+        // Only this fixture's disposable schema is migrated; no application database is touched.
+        await using var db = fixture.CreateDbContext();
+        var migrations = db.Database.GetMigrations().ToArray();
+        Assert.EndsWith("_AddPlayGameTimer", migrations[^1]);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(migrations[^2]);
+        await migrator.MigrateAsync();
+        var canonical = await Read(url);
+        Assert.Null(canonical.CurrentMatches[0].TimerDurationMinutes);
+        Assert.Equal(15, canonical.CurrentMatches[1].TimerDurationMinutes);
+        var id = canonical.CurrentMatches[1].Id;
+        var error = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"PlayMatches\" SET \"TimerDurationMinutes\" = 12 WHERE \"Id\" = {id}"));
+        Assert.Equal("23514", error.SqlState);
+    }
+
+    [PostgresTheory]
+    [InlineData(10)]
+    [InlineData(15)]
+    [InlineData(20)]
+    [InlineData(null)]
+    public async Task Timer_selection_start_and_fresh_reads_share_persisted_per_game_configuration(int? minutes)
+    {
+        var (url, state) = await Create(); var first = state.CurrentMatches[0];
+        Assert.All(state.CurrentMatches, m => Assert.Equal(15, m.TimerDurationMinutes));
+        using var edit = await fixture.Client.PatchAsJsonAsync($"{url}/matches/{first.Id}/timer",
+            new { timerDurationMinutes = minutes, expectedRevision = first.LineupRevision });
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        var saved = (await Read(url)).CurrentMatches[0];
+        Assert.Equal(minutes, saved.TimerDurationMinutes); Assert.Equal(1, saved.LineupRevision);
+        Assert.Equal(HttpStatusCode.Conflict, (await Start(url, first)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Start(url, saved)).StatusCode);
+        var started = (await Read(url)).CurrentMatches[0];
+        Assert.NotNull(started.StartedAt); Assert.Equal(minutes, started.TimerDurationMinutes);
+        await using var db = fixture.CreateDbContext();
+        var stored = await db.Set<PlayMatch>().SingleAsync(m => m.Id == first.Id);
+        Assert.Equal(started.StartedAt, stored.StartedAt); Assert.Equal(minutes, stored.TimerDurationMinutes);
+        Assert.Equal(15, (await Read(url)).CurrentMatches[1].TimerDurationMinutes);
+        Assert.Equal(HttpStatusCode.Conflict, (await fixture.Client.PatchAsJsonAsync($"{url}/matches/{first.Id}/timer",
+            new { timerDurationMinutes = 20, expectedRevision = saved.LineupRevision })).StatusCode);
+        Assert.Equal(JsonSerializer.Serialize(started, Json), JsonSerializer.Serialize((await Read(url)).CurrentMatches[0], Json));
+    }
+
+    [PostgresFact]
+    public async Task Timer_edit_racing_start_accepts_only_one_intent()
+    {
+        var (url, state) = await Create(); var m = state.CurrentMatches[0];
+        var results = await Task.WhenAll(Start(url, m), fixture.Client.PatchAsJsonAsync($"{url}/matches/{m.Id}/timer",
+            new { timerDurationMinutes = 10, expectedRevision = m.LineupRevision }));
+        Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict);
+        var canonical = (await Read(url)).CurrentMatches[0];
+        Assert.Equal(canonical.Status == PlayMatchStatus.Ready ? 10 : 15, canonical.TimerDurationMinutes);
+        if (canonical.Status == PlayMatchStatus.Ready)
+            Assert.Equal(HttpStatusCode.OK, (await Start(url, canonical)).StatusCode);
+        Assert.Equal(PlayMatchStatus.Active, (await Read(url)).CurrentMatches[0].Status);
+        foreach (var response in results) response.Dispose();
+    }
+
+    [PostgresFact]
+    public async Task Timer_rejects_missing_invalid_and_stale_inputs_without_mutating_the_court()
+    {
+        var (url, state) = await Create(); var m = state.CurrentMatches[0];
+        foreach (var body in new object[] { new { expectedRevision = 0 }, new { timerDurationMinutes = 10 },
+            new { expectedRevision = 0, timerDurationMinutes = 12 } })
+            Assert.Equal(HttpStatusCode.BadRequest, (await fixture.Client.PatchAsJsonAsync($"{url}/matches/{m.Id}/timer", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await fixture.Client.PatchAsJsonAsync($"{url}/matches/{m.Id}/timer",
+            new { expectedRevision = 99, timerDurationMinutes = 10 })).StatusCode);
+        Assert.Equal(JsonSerializer.Serialize(state, Json), JsonSerializer.Serialize(await Read(url), Json));
+    }
 
     [PostgresTheory]
     [InlineData(PlaySessionMode.LiveScoring)]

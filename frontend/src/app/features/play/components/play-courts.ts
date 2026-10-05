@@ -22,10 +22,11 @@ import { PlayScoreEditor } from './play-score-editor';
 import { PlayNextGame, ReadyLineupAction } from './play-next-game';
 import { PlayRallyHistory } from './play-rally-history';
 import { DatePipe } from '@angular/common';
+import { PlayGameTimer } from './play-game-timer';
 
 @Component({
   selector: 'app-play-courts',
-  imports: [DatePipe, PlayScoreEditor, PlayNextGame, PlayRallyHistory],
+  imports: [DatePipe, PlayScoreEditor, PlayNextGame, PlayRallyHistory, PlayGameTimer],
   templateUrl: './play-courts.html',
   styleUrl: './play-courts.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

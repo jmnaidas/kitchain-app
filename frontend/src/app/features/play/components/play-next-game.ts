@@ -10,7 +10,8 @@ import {
 export interface ReadyLineupAction {
   matchId: string;
   expectedRevision: number;
-  action: 'slot' | 'start' | 'reset';
+  action: 'slot' | 'start' | 'reset' | 'timer';
+  timerDurationMinutes?: number | null;
   position?: number;
   playerId?: string;
   otherMatchId?: string;
@@ -36,6 +37,16 @@ export class PlayNextGame {
   readonly startNext = output<NextPlayGame>();
   readonly readyAction = output<ReadyLineupAction>();
   protected readonly rotationLabel = rotationLabel;
+  protected readonly timerChoices = [10, 15, 20, null];
+  protected setTimer(minutes: number | null) {
+    if (this.disabled() || this.match().status !== 'Ready') return;
+    this.readyAction.emit({
+      matchId: this.match().id,
+      action: 'timer',
+      expectedRevision: this.match().lineupRevision ?? 0,
+      timerDurationMinutes: minutes,
+    });
+  }
   private readonly skills = computed(
     () =>
       new Map(

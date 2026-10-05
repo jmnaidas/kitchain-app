@@ -8,6 +8,9 @@
     </h3>
     <span>Completed</span>
   </header>
+  @if (duration(); as elapsed) {
+    <p class="muted" aria-label="Game duration">Duration · {{ elapsed }}</p>
+  }
   <p class="result">
     @if (match().winner) {
       Team {{ match().winner }} won
@@ -26,7 +29,10 @@
     <strong>Team B: {{ teamNames('B') }}</strong>
   </p>
   <p class="timing">
-    {{ match().startedAt | date: 'MMM d, y' }} · Started {{ match().startedAt | date: 'shortTime' }}
+    @if (match().startedAt) {
+      {{ match().startedAt | date: 'MMM d, y' }} · Started
+      {{ match().startedAt | date: 'shortTime' }}
+    }
     @if (match().completedAt) {
       · Finished
       @if (!sameDay()) {

@@ -11,6 +11,21 @@ namespace Kitchain.Tests.Play;
 public sealed class PlayLiveTests
 {
     [Fact]
+    public async Task Timer_selection_notifies_after_save_and_stale_selection_does_not_notify()
+    {
+        var store = new Store();
+        var service = new PlaySessionService(store, new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
+        var notifier = new RecordingNotifier(store);
+        var controller = new PlaySessionsController(service, NullLogger<PlaySessionsController>.Instance, notifier);
+        await controller.Start("ABCDEF", default);
+        var match = store.Session.Matches.Single();
+        await controller.SetGameTimer("ABCDEF", match.Id, new SetPlayGameTimer(10, match.LineupRevision), default);
+        Assert.Equal(10, match.TimerDurationMinutes); Assert.Equal(2, notifier.Codes.Count);
+        await controller.SetGameTimer("ABCDEF", match.Id, new SetPlayGameTimer(20, 0), default);
+        Assert.Equal(10, match.TimerDurationMinutes); Assert.Equal(2, notifier.Codes.Count);
+    }
+
+    [Fact]
     public async Task Hub_normalizes_group_join_and_leave_and_rejects_invalid_codes()
     {
         var groups = new Groups();

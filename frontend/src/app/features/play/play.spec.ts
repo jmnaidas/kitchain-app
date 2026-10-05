@@ -1963,14 +1963,12 @@ describe('Play experience', () => {
       player('p' + (i + 1), 'Player ' + (i + 1), i < 8 ? null : i, i < 8 ? 'Playing' : 'Waiting'),
     );
     const slots = (start: number) =>
-      players
-        .slice(start, start + 4)
-        .map((p, i) => ({
-          playerId: p.id,
-          displayName: p.displayName,
-          team: (i < 2 ? 'A' : 'B') as 'A' | 'B',
-          position: i + 1,
-        }));
+      players.slice(start, start + 4).map((p, i) => ({
+        playerId: p.id,
+        displayName: p.displayName,
+        team: (i < 2 ? 'A' : 'B') as 'A' | 'B',
+        position: i + 1,
+      }));
     const matches = [0, 4].map((start, i) => ({
       ...scoredRoom().currentMatches[0],
       id: 'court-' + (i + 1),
@@ -2376,6 +2374,7 @@ describe('Play experience', () => {
       rallies: [],
       lineupRevision: 0,
       isLineupOverridden: false,
+      timerDurationMinutes: 15,
       eligiblePlayers: players,
       nextLineup: [],
     };
@@ -2887,6 +2886,104 @@ describe('Play experience', () => {
     expect(element.querySelector('[aria-label="Finish game on Court 1"]')).toBeNull();
     expect(element.querySelector<HTMLInputElement>('#guest-name')?.matches(':disabled')).toBe(true);
     expect(element.querySelector('article[aria-label="Court 1"]')?.textContent).toContain('Alex');
+  });
+
+  it('persists Ready timer presets canonically and starts without any extra default step', async () => {
+    let state = readyRoom();
+    await openRoom(state);
+    click('Courts');
+    const selected = () =>
+      element.querySelector('.timer-options [aria-pressed="true"]')?.textContent?.trim();
+    expect(selected()).toBe('15 min');
+    for (const minutes of [10, 20, null, 15]) {
+      click(minutes === null ? 'No limit' : `${minutes} min`);
+      const request = http.expectOne(`${base}/${code}/matches/scored-match/timer`);
+      expect(request.request.method).toBe('PATCH');
+      expect(request.request.body).toEqual({
+        timerDurationMinutes: minutes,
+        expectedRevision: state.currentMatches[0].lineupRevision,
+      });
+      expect(button('Start Game').disabled).toBe(true);
+      state = {
+        ...state,
+        currentMatches: [
+          {
+            ...state.currentMatches[0],
+            timerDurationMinutes: minutes,
+            lineupRevision: state.currentMatches[0].lineupRevision! + 1,
+          },
+        ],
+      };
+      request.flush(state);
+      await settle();
+      expect(selected()).toBe(minutes === null ? 'No limit' : `${minutes} min`);
+    }
+    click('Start Game');
+    const start = http.expectOne(`${base}/${code}/matches/scored-match/start`);
+    expect(start.request.body).toEqual({ expectedRevision: 4 });
+    start.flush({
+      ...state,
+      currentMatches: [
+        { ...state.currentMatches[0], status: 'Active', startedAt: new Date().toISOString() },
+      ],
+    });
+    await settle();
+    expect(element.querySelector('.timer-options')).toBeNull();
+    expect(element.querySelector('app-play-game-timer')?.textContent).toContain('15:00');
+  });
+
+  it('refetches a stale timer selection and accepts timer changes through live canonical refresh', async () => {
+    const state = readyRoom();
+    await openRoom(state);
+    click('Courts');
+    click('10 min');
+    http
+      .expectOne(`${base}/${code}/matches/scored-match/timer`)
+      .flush({}, { status: 409, statusText: 'Conflict' });
+    const changed = {
+      ...state,
+      currentMatches: [{ ...state.currentMatches[0], timerDurationMinutes: 20, lineupRevision: 1 }],
+    };
+    http.expectOne(`${base}/${code}`).flush(changed);
+    await settle();
+    expect(element.querySelector('.timer-options [aria-pressed="true"]')?.textContent).toContain(
+      '20 min',
+    );
+    liveEvents.next({ kind: 'changed' });
+    await settle();
+    http
+      .expectOne(`${base}/${code}`)
+      .flush({
+        ...changed,
+        currentMatches: [
+          { ...changed.currentMatches[0], timerDurationMinutes: null, lineupRevision: 2 },
+        ],
+      });
+    await settle();
+    expect(element.querySelector('.timer-options [aria-pressed="true"]')?.textContent).toContain(
+      'No limit',
+    );
+  });
+
+  it('shows overtime without Finish or Proceed requests and leaves scoring usable', async () => {
+    const state = scoredRoom();
+    state.currentMatches[0].timerDurationMinutes = 10;
+    state.currentMatches[0].startedAt = new Date(Date.now() - 11 * 60_000).toISOString();
+    await openRoom(state);
+    click('Courts');
+    expect(element.querySelector('app-play-game-timer')?.textContent).toContain('TIME');
+    expect(element.querySelector('app-play-game-timer')?.textContent).toContain('+01:');
+    http.expectNone((request) => request.method !== 'GET');
+    click('Team A won rally');
+    http.expectOne(`${base}/${code}/matches/scored-match/rallies`).flush(state);
+    await settle();
+    expect(element.querySelector('app-play-game-timer')?.textContent).toContain('TIME');
+    expect(button('Finish Game (override)').disabled).toBe(false);
+    click('End Session');
+    click('End Session');
+    http.expectOne(`${base}/${code}/end`).flush({ ...state, status: 'Ended' });
+    await settle();
+    expect(element.querySelector('app-play-game-timer')).toBeNull();
   });
 
   it('edits Ready names directly, swaps and replaces canonically, and refetches conflicts', async () => {

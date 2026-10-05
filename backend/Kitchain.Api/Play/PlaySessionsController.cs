@@ -116,6 +116,10 @@ public sealed class PlaySessionsController(PlaySessionService sessions, ILogger<
     public Task<ActionResult<PlaySessionDetail>> StartGame(string code, Guid matchId, ReadyPlayGame input, CancellationToken ct) =>
         SessionResult(() => sessions.StartGameAsync(code, matchId, input, ct));
 
+    [HttpPatch("{code}/matches/{matchId:guid}/timer")]
+    public Task<ActionResult<PlaySessionDetail>> SetGameTimer(string code, Guid matchId, SetPlayGameTimer input, CancellationToken ct) =>
+        SessionResult(() => sessions.SetGameTimerAsync(code, matchId, input, ct));
+
     [HttpPatch("{code}/next-round")]
     [RequestSizeLimit(2048)]
     public Task<ActionResult<PlaySessionDetail>> EditNextRound(string code, EditPlayNextRound input, CancellationToken ct) =>

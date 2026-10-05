@@ -66,6 +66,9 @@
           </div>
         }
         @if (match.status === 'Active') {
+          @if (session().status === 'Active') {
+            <app-play-game-timer [match]="match" />
+          }
           @if (session().mode === 'LiveScoring') {
             <p class="service">
               Serving: <strong>Team {{ match.servingTeam }}</strong> ·

@@ -141,6 +141,17 @@ export class PlayApi {
       },
     );
   }
+  setGameTimer(
+    code: string,
+    matchId: string,
+    timerDurationMinutes: number | null,
+    expectedRevision: number,
+  ) {
+    return this.http.patch<PlaySession>(
+      `${this.url(code)}/matches/${encodeURIComponent(matchId)}/timer`,
+      { timerDurationMinutes, expectedRevision },
+    );
+  }
   readyAction(
     code: string,
     matchId: string,

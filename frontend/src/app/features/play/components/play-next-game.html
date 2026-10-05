@@ -83,6 +83,18 @@
     @if (match().isLineupOverridden) {
       <p class="help">Host-adjusted lineup</p>
     }
+    <fieldset class="timer-options" [disabled]="disabled()">
+      <legend>Game timer</legend>
+      @for (minutes of timerChoices; track minutes) {
+        <button
+          type="button"
+          [attr.aria-pressed]="match().timerDurationMinutes === minutes"
+          (click)="setTimer(minutes)"
+        >
+          {{ minutes === null ? 'No limit' : minutes + ' min' }}
+        </button>
+      }
+    </fieldset>
     <div class="actions">
       <button type="button" [disabled]="disabled()" (click)="emit('reset')">
         Reset Recommendation

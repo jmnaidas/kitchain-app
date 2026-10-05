@@ -19,6 +19,17 @@ public sealed class PlayMatchHistoryTests
     private static PlaySessionService Service(PlaySession session) => new(new Store(session), new PlaySessionServiceTests.SequenceCodes("ABCDEF"));
 
     [Fact]
+    public async Task Legacy_summary_without_start_timestamp_remains_readable()
+    {
+        var session = Session(); var match = Court(session);
+        session.FinishGame(match.Id, Now.AddMinutes(12));
+        // Current schema requires a start; simulate an older/incomplete aggregate for read compatibility.
+        typeof(PlayMatch).GetProperty(nameof(PlayMatch.StartedAt))!.SetValue(match, null);
+        var summary = Assert.Single((await Service(session).FindAsync("ABCDEF", default))!.MatchHistory);
+        Assert.Null(summary.StartedAt); Assert.Equal(Now.AddMinutes(12), summary.CompletedAt);
+    }
+
+    [Fact]
     public async Task Completed_summary_uses_final_state_and_only_recorded_rallies_and_tags()
     {
         var session = Session();

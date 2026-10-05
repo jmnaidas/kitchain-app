@@ -10,7 +10,16 @@ internal static class PlayFairRotation
         IEnumerable<PlayMatch> history, Guid seed, int count = 4)
     {
         if (eligible.Count < count) return eligible.ToArray();
-        var matches = history.Where(m => m.Status == PlayMatchStatus.Completed).OrderByDescending(m => m.StartedAt).ThenByDescending(m => m.Id).ToArray();
+        // Every completed quartet contributes its six unordered courtmate pairs, regardless
+        // of team arrangement. Keep lifetime counts so old repeat groups do not become fresh.
+        var sharedCourts = new Dictionary<(Guid, Guid), long>();
+        foreach (var match in history.Where(m => m.Status == PlayMatchStatus.Completed && m.Players.Count == 4))
+        {
+            var ids = match.Players.Select(p => p.PlayerId).Order().ToArray();
+            for (var a = 0; a < ids.Length; a++)
+                for (var b = a + 1; b < ids.Length; b++)
+                    sharedCourts[(ids[a], ids[b])] = sharedCourts.GetValueOrDefault((ids[a], ids[b])) + 1;
+        }
         var mandatory = new List<PlaySessionPlayer>();
         foreach (var tier in eligible.GroupBy(p => (p.AdjustedGamesStarted, Band: p.MissedOpportunities / 2))
             .OrderBy(g => g.Key.AdjustedGamesStarted).ThenByDescending(g => g.Key.Band))
@@ -25,21 +34,20 @@ internal static class PlayFairRotation
             // Only the boundary tier is capped; higher-priority players are never dropped.
             var pool = tier.OrderBy(p => p.WaitingSince ?? DateTimeOffset.MaxValue)
                 .ThenBy(p => p.QueueOrder ?? long.MaxValue).ThenBy(p => Tie(seed, [p.Id]), StringComparer.Ordinal).Take(12).ToArray();
-            var recent = matches.SelectMany(m => m.Players.Select(p => (p.PlayerId, Match: m)))
-                .GroupBy(x => x.PlayerId).ToDictionary(g => g.Key, g => g.Take(3).Select(x => x.Match.Id).ToHashSet());
             var choices = Combinations(pool, needed).Select(extra =>
             {
                 var group = mandatory.Concat(extra).OrderBy(p => p.Id).ToArray();
                 var ids = group.Select(p => p.Id).ToHashSet();
-                var relevant = matches.Where(m => group.Any(p => recent.GetValueOrDefault(p.Id)?.Contains(m.Id) == true)).ToArray();
-                var quartetRepeats = relevant.Count(m => m.Players.Count == 4 && m.Players.All(p => ids.Contains(p.PlayerId)));
-                var shared = relevant.Sum(m => { var n = m.Players.Count(p => ids.Contains(p.PlayerId)); return n * (n - 1) / 2; });
-                return new { Group = group, QuartetRepeats = quartetRepeats, Shared = shared,
+                long shared = 0;
+                for (var a = 0; a < group.Length; a++)
+                    for (var b = a + 1; b < group.Length; b++)
+                        shared += sharedCourts.GetValueOrDefault((group[a].Id, group[b].Id));
+                return new { Group = group, Shared = shared,
                     Continuing = group.Count(p => p.State == PlayPlayerState.Playing),
                     Wait = group.Sum(p => (decimal)(p.WaitingSince ?? DateTimeOffset.MaxValue).UtcTicks),
                     Ticket = group.Sum(p => (decimal)(p.QueueOrder ?? long.MaxValue)), Tie = Tie(seed, ids) };
             });
-            return choices.OrderBy(x => x.QuartetRepeats).ThenBy(x => x.Shared).ThenBy(x => x.Continuing)
+            return choices.OrderBy(x => x.Shared).ThenBy(x => x.Continuing)
                 .ThenBy(x => x.Wait).ThenBy(x => x.Ticket).ThenBy(x => x.Tie, StringComparer.Ordinal).First().Group;
         }
         return mandatory.ToArray();

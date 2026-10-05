@@ -29,6 +29,10 @@ public sealed record EditPlaySkill([property: JsonRequired] string? SkillLevel,
 public sealed record ReadyPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SetPlayGameTimer([property: JsonRequired] int? TimerDurationMinutes,
+    [Required, Range(0, long.MaxValue)] long? ExpectedRevision);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PlanPlayGame([Required, Range(0, long.MaxValue)] long? ExpectedRevision, Guid? MatchId = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -95,7 +99,7 @@ public sealed record PlayMatchDetail(Guid Id, int CourtNumber, PlayMatchStatus S
     IReadOnlyList<PlayMatchPlayerDetail> Players, int TeamAScore, int TeamBScore, PlayTeam ServingTeam, int CurrentServerNumber,
     DateTimeOffset? CompletedAt, PlayTeam? Winner, IReadOnlyList<PlayMatchPlayerDetail> NextLineup,
     IReadOnlyList<PlayPlayerDetail> EligiblePlayers, IReadOnlyList<PlayRallyEventDetail> Rallies,
-    long LineupRevision = 0, bool IsLineupOverridden = false);
+    long LineupRevision = 0, bool IsLineupOverridden = false, int? TimerDurationMinutes = null);
 
 public sealed record PlaySessionDetail(Guid Id, string JoinCode, string Name, DateOnly SessionDate,
     TimeOnly StartTime, TimeOnly EndTime, int NumberOfCourts, int? MaximumPlayers, PlaySessionStatus Status,
@@ -194,6 +198,10 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
     public Task<PlaySessionDetail?> StartAsync(string code, CancellationToken cancellationToken) =>
         UpdateAsync(code, s => s.Start(Now(s)), cancellationToken);
 
+    public Task<PlaySessionDetail?> SetGameTimerAsync(string code, Guid matchId, SetPlayGameTimer input, CancellationToken ct) =>
+        UpdateAsync(code, s => s.SetGameTimer(matchId, input.TimerDurationMinutes,
+            input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
+
     public Task<PlaySessionDetail?> StartGameAsync(string code, Guid matchId, ReadyPlayGame input, CancellationToken ct) =>
         UpdateAsync(code, s => s.StartGame(matchId, input.ExpectedRevision ?? throw new ArgumentException("Lineup revision is required."), Now(s)), ct);
 
@@ -268,11 +276,11 @@ public sealed class PlaySessionService(IPlaySessionStore store, IPlayJoinCodeGen
                 ? session.EligibleNextPlayers(match.Id).Select(Player).ToArray()
                 : match.Status == PlayMatchStatus.Ready && session.Status == PlaySessionStatus.Active
                     ? session.EligibleReadyPlayers(match.Id).Select(Player).ToArray() : [],
-            Rallies(match), match.LineupRevision, match.IsLineupOverridden);
+            Rallies(match), match.LineupRevision, match.IsLineupOverridden, match.TimerDurationMinutes);
         var scoring = session.Mode == PlaySessionMode.LiveScoring;
         var history = session.Matches.Where(m => m.Status == PlayMatchStatus.Completed)
             .OrderByDescending(m => m.CompletedAt).ThenByDescending(m => m.StartedAt).ThenByDescending(m => m.Id)
-            .Select(m => new PlayMatchSummary(m.Id, m.CourtNumber, Participants(m), m.StartedAt!.Value, m.CompletedAt,
+            .Select(m => new PlayMatchSummary(m.Id, m.CourtNumber, Participants(m), m.StartedAt, m.CompletedAt,
                 scoring ? m.TeamAScore : null, scoring ? m.TeamBScore : null, m.Winner,
                 scoring ? m.Rallies.Count : null, scoring ? m.Rallies.Count(r => r.CallOut.HasValue) : null,
                 scoring ? m.Rallies.Where(r => r.CallOut.HasValue).GroupBy(r => r.CallOut!.Value)
